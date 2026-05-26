@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Contador de calorías</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Control personal</p>
+        <h1>Contador de calorías</h1>
+      </div>
+      <div class="session">
+        <span id="user-email"></span>
+        <button id="mobile-menu-button" class="secondary mobile-menu-button" type="button" aria-expanded="false" aria-label="Abrir menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <button id="logout-button" class="ghost hidden" type="button">Salir</button>
+      </div>
+    </header>
+
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay hidden">
+      <div class="mobile-menu-panel">
+        <div class="mobile-menu-session">
+          <span id="mobile-user-email"></span>
+          <button id="mobile-logout-button" class="ghost" type="button">Salir</button>
+        </div>
+
+        <nav id="mobile-nav" class="mobile-nav hidden" aria-label="Secciones movil">
+          <button class="mobile-nav-item active" data-mobile-tab="today" type="button">Hoy</button>
+          <button class="mobile-nav-item" data-mobile-tab="meals" type="button">Comidas</button>
+          <button class="mobile-nav-item" data-mobile-tab="history" type="button">Registro</button>
+          <button class="mobile-nav-item" data-mobile-tab="catalog" type="button">Catalogo</button>
+          <button class="mobile-nav-item" data-mobile-tab="profile" type="button">Perfil</button>
+        </nav>
+      </div>
+    </div>
+
+    <main>
+      <section id="setup-warning" class="notice hidden">
+        <strong>Falta configurar Supabase.</strong>
+        Edita <code>config.js</code> con la URL y la anon key de tu proyecto cuando lo crees.
+      </section>
+
+      <section id="auth-view" class="auth-shell">
+        <div class="auth-panel">
+          <h2>Entrar</h2>
+          <p>Usa el email y la contraseña de una cuenta creada manualmente en Supabase.</p>
+          <form id="auth-form">
+            <label>
+              Email
+              <input id="auth-email" type="email" autocomplete="email" required>
+            </label>
+            <label>
+              Contraseña
+              <input id="auth-password" type="password" autocomplete="current-password" minlength="6" required>
+            </label>
+            <div class="button-row">
+              <button type="submit" data-auth-mode="login">Entrar</button>
+            </div>
+          </form>
+          <p id="auth-message" class="message"></p>
+        </div>
+      </section>
+
+      <section id="app-view" class="app-shell hidden">
+        <nav class="tabs" aria-label="Secciones">
+          <button class="tab active" data-tab="today" type="button">Hoy</button>
+          <button class="tab" data-tab="meals" type="button">Comidas</button>
+          <button class="tab" data-tab="history" type="button">Registro</button>
+          <button class="tab" data-tab="catalog" type="button">Catálogo</button>
+          <button class="tab" data-tab="profile" type="button">Perfil</button>
+        </nav>
+        <section id="today" class="tab-panel active">
+          <div class="dashboard">
+            <article class="metric">
+              <span>Objetivo</span>
+              <strong id="target-kcal">0 kcal</strong>
+            </article>
+            <article class="metric">
+              <span>Comidas</span>
+              <strong id="food-kcal">0 kcal</strong>
+            </article>
+            <article class="metric">
+              <span>Bebidas</span>
+              <strong id="drink-kcal">0 kcal</strong>
+            </article>
+            <article class="metric">
+              <span>Ejercicio</span>
+              <strong id="exercise-kcal">0 kcal</strong>
+            </article>
+            <article class="metric accent">
+              <span>Balance</span>
+              <strong id="net-kcal">0 kcal</strong>
+            </article>
+          </div>
+
+          <div class="date-row">
+            <label>
+              Fecha
+              <input id="current-date" type="date">
+            </label>
+          </div>
+
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-heading">
+                <h2>Comidas</h2>
+                <span id="meal-total" class="pill">0 kcal</span>
+              </div>
+              <form id="meal-form" class="stack">
+                <div class="form-grid">
+                  <label>
+                    Momento
+                    <select id="meal-type">
+                      <option>Desayuno</option>
+                      <option>Comida</option>
+                      <option>Cena</option>
+                      <option>Snack</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="meal-foods" class="meal-foods">
+                  <div class="meal-food-row form-grid">
+                    <label>
+                      Alimento
+                      <input id="food-search" class="food-search" list="food-options" type="text" placeholder="Escribe un alimento" required>
+                    </label>
+                    <label>
+                      Gramos
+                      <input id="food-grams" class="food-grams" type="number" min="1" step="1" value="100" required>
+                    </label>
+                  </div>
+                </div>
+                <div class="button-row compact">
+                  <button id="add-food-line" class="secondary" type="button">Otro alimento</button>
+                </div>
+                <div class="inline-result">
+                  <span id="food-preview">Selecciona un alimento</span>
+                  <button type="submit">Añadir comida</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h2>Bebidas</h2>
+                <span id="drink-total" class="pill">0 kcal</span>
+              </div>
+              <form id="drink-form" class="stack">
+                <div class="form-grid">
+                  <label>
+                    Bebida
+                    <input id="drink-search" list="drink-options" type="text" placeholder="Escribe una bebida" required>
+                  </label>
+                  <label>
+                    Mililitros
+                    <input id="drink-ml" type="number" min="1" step="1" value="250" required>
+                  </label>
+                </div>
+                <div class="inline-result">
+                  <span id="drink-preview">Selecciona una bebida</span>
+                  <button type="submit">Añadir bebida</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h2>Ejercicio</h2>
+                <span id="exercise-total" class="pill">0 kcal</span>
+              </div>
+              <form id="exercise-form" class="stack">
+                <div class="form-grid">
+                  <label>
+                    Actividad
+                    <input id="exercise-search" list="exercise-options" type="text" placeholder="Escribe un deporte" required>
+                  </label>
+                  <label>
+                    Minutos
+                    <input id="exercise-minutes" type="number" min="1" step="1" value="30" required>
+                  </label>
+                </div>
+                <div class="inline-result">
+                  <span id="exercise-preview">Calculado con tu peso actual</span>
+                  <button type="submit">Añadir ejercicio</button>
+                </div>
+              </form>
+              <ul id="exercise-list" class="entry-list"></ul>
+            </section>
+          </div>
+        </section>
+
+        <section id="meals" class="tab-panel">
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Comidas</h2>
+              <div class="date-row compact">
+                <label>
+                  Fecha
+                  <input id="meals-date" type="date">
+                </label>
+                <button id="refresh-meals" class="secondary" type="button">Actualizar</button>
+              </div>
+            </div>
+            <div id="meals-timeline" class="entry-list meals-timeline"></div>
+          </section>
+        </section>
+
+        <section id="profile" class="tab-panel">
+          <div class="grid two">
+            <section class="panel">
+              <h2>Datos personales</h2>
+              <form id="profile-form" class="stack">
+                <div class="form-grid">
+                  <label>
+                    Edad
+                    <input id="age" type="number" min="10" max="100" required>
+                  </label>
+                  <label>
+                    Sexo
+                    <select id="sex">
+                      <option value="male">Hombre</option>
+                      <option value="female">Mujer</option>
+                    </select>
+                  </label>
+                  <label>
+                    Altura (cm)
+                    <input id="height" type="number" min="100" max="230" required>
+                  </label>
+                  <label>
+                    Peso actual (kg)
+                    <input id="weight" type="number" min="30" max="250" step="0.1" required>
+                  </label>
+                  <label>
+                    Actividad normal
+                    <select id="activity-level">
+                      <option value="1.2">Sedentario</option>
+                      <option value="1.375">Ligero</option>
+                      <option value="1.55">Moderado</option>
+                      <option value="1.725">Alto</option>
+                    </select>
+                  </label>
+                  <label>
+                    Objetivo
+                    <select id="goal">
+                      <option value="lose">Bajar peso</option>
+                      <option value="maintain">Mantener</option>
+                      <option value="gain">Subir peso</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="inline-result">
+                  <span id="target-preview">Completa tus datos</span>
+                  <button type="submit">Guardar perfil</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Registro de peso</h2>
+              <form id="weight-form" class="stack">
+                <div class="form-grid">
+                  <label>
+                    Fecha
+                    <input id="weight-date" type="date" required>
+                  </label>
+                  <label>
+                    Peso (kg)
+                    <input id="weight-value" type="number" min="30" max="250" step="0.1" required>
+                  </label>
+                </div>
+                <button type="submit">Guardar peso</button>
+              </form>
+              <ul id="weight-list" class="entry-list compact"></ul>
+            </section>
+          </div>
+        </section>
+
+        <section id="history" class="tab-panel">
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Evolución</h2>
+              <button id="refresh-history" class="secondary" type="button">Actualizar</button>
+            </div>
+            <div class="chart-grid">
+              <article class="chart-card">
+                <h3>Peso</h3>
+                <canvas id="weight-chart" height="220"></canvas>
+                <p id="weight-chart-empty" class="chart-empty hidden">Añade registros de peso para ver la gráfica.</p>
+              </article>
+              <article class="chart-card">
+                <h3>Calorias quemadas</h3>
+                <canvas id="burned-chart" height="220"></canvas>
+                <p id="burned-chart-empty" class="chart-empty hidden">Añade ejercicios para ver la gráfica.</p>
+              </article>
+              <article class="chart-card">
+                <h3>Calorias consumidas</h3>
+                <canvas id="consumed-chart" height="220"></canvas>
+                <p id="consumed-chart-empty" class="chart-empty hidden">Añade comidas o bebidas para ver la gráfica.</p>
+              </article>
+            </div>
+            <div id="history-list" class="history-list"></div>
+          </section>
+        </section>
+
+        <section id="catalog" class="tab-panel">
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-heading">
+                <h2>Alimentos</h2>
+                <button id="cancel-food-edit" class="secondary hidden" type="button">Cancelar</button>
+              </div>
+              <form id="catalog-food-form" class="stack">
+                <input id="catalog-food-id" type="hidden">
+                <div class="form-grid">
+                  <label>
+                    Nombre
+                    <input id="catalog-food-name" type="text" placeholder="Ej. yogur griego" required>
+                  </label>
+                  <label>
+                    Calorias / 100 g
+                    <input id="catalog-food-calories" type="number" min="0" step="1" required>
+                  </label>
+                  <label>
+                    Proteína / 100 g
+                    <input id="catalog-food-protein" type="number" min="0" step="0.1" value="0">
+                  </label>
+                  <label>
+                    Carbohidratos / 100 g
+                    <input id="catalog-food-carbs" type="number" min="0" step="0.1" value="0">
+                  </label>
+                  <label>
+                    Grasa / 100 g
+                    <input id="catalog-food-fat" type="number" min="0" step="0.1" value="0">
+                  </label>
+                  <label id="catalog-food-public-label" class="checkbox-label hidden">
+                    <input id="catalog-food-public" type="checkbox">
+                    Público
+                  </label>
+                </div>
+                <button id="save-catalog-food" type="submit">Añadir alimento</button>
+              </form>
+              <ul id="catalog-food-list" class="entry-list catalog-list"></ul>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h2>Bebidas</h2>
+                <button id="cancel-drink-edit" class="secondary hidden" type="button">Cancelar</button>
+              </div>
+              <form id="catalog-drink-form" class="stack">
+                <input id="catalog-drink-id" type="hidden">
+                <div class="form-grid">
+                  <label>
+                    Nombre
+                    <input id="catalog-drink-name" type="text" placeholder="Ej. cafe con leche" required>
+                  </label>
+                  <label>
+                    Calorias / 100 ml
+                    <input id="catalog-drink-calories" type="number" min="0" step="1" required>
+                  </label>
+                  <label id="catalog-drink-public-label" class="checkbox-label hidden">
+                    <input id="catalog-drink-public" type="checkbox">
+                    Público
+                  </label>
+                </div>
+                <button id="save-catalog-drink" type="submit">Añadir bebida</button>
+              </form>
+              <ul id="catalog-drink-list" class="entry-list catalog-list"></ul>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h2>Deportes</h2>
+                <button id="cancel-exercise-edit" class="secondary hidden" type="button">Cancelar</button>
+              </div>
+              <form id="catalog-exercise-form" class="stack">
+                <input id="catalog-exercise-id" type="hidden">
+                <div class="form-grid">
+                  <label>
+                    Nombre
+                    <input id="catalog-exercise-name" type="text" placeholder="Ej. padel" required>
+                  </label>
+                  <label>
+                    MET
+                    <input id="catalog-exercise-met" type="number" min="0.1" step="0.1" required>
+                  </label>
+                  <label id="catalog-exercise-public-label" class="checkbox-label hidden">
+                    <input id="catalog-exercise-public" type="checkbox">
+                    Público
+                  </label>
+                </div>
+                <button id="save-catalog-exercise" type="submit">Añadir deporte</button>
+              </form>
+              <ul id="catalog-exercise-list" class="entry-list catalog-list"></ul>
+            </section>
+          </div>
+        </section>
+      </section>
+      <datalist id="food-options"></datalist>
+      <datalist id="drink-options"></datalist>
+      <datalist id="exercise-options"></datalist>
+    </main>
+  </body>
+</html>

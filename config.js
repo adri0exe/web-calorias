@@ -1,0 +1,4 @@
+window.CALORIE_APP_CONFIG = {
+  SUPABASE_URL: "https://qsxsmgatxisgcouwdoeg.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzeHNtZ2F0eGlzZ2NvdXdkb2VnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTczMjc0NiwiZXhwIjoyMDk1MzA4NzQ2fQ.nYKHd5Q8Y5VAhrhd9O-M09GNidhJ0wybUT8tsCLCYWo"
+};
