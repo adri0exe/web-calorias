@@ -145,12 +145,11 @@ function init() {
     scrollTimeout = setTimeout(() => {
       const charts = [els.weightChart, els.burnedChart, els.consumedChart];
       charts.forEach((canvas) => {
-        if (canvas && canvas._needsRender) {
-          const { points, color, suffix } = canvas._needsRender;
-          renderLineChart({ canvas, empty: canvas.nextElementSibling, points, color, suffix });
+        if (canvas && canvas._chartData) {
+          renderLineChart({ canvas, ...canvas._chartData });
         }
       });
-    }, 100);
+    }, 150);
   }, { passive: true });
 }
 
@@ -1011,6 +1010,53 @@ async function renderHistory() {
     suffix: " kcal"
   });
 
+  // Store chart data for re-rendering on resize
+  els.weightChart._chartData = {
+    empty: els.weightChartEmpty,
+    points: state.weights
+      .map((item) => ({ date: item.entry_date, value: Number(item.weight_kg) }))
+      .sort((a, b) => a.date.localeCompare(b.date)),
+    color: "#217a5b",
+    suffix: " kg"
+  };
+  els.burnedChart._chartData = {
+    empty: els.burnedChartEmpty,
+    points: daysAscending
+      .filter((day) => day.exercise > 0)
+      .map((day) => ({ date: day.date, value: day.exercise })),
+    color: "#b85728",
+    suffix: " kcal"
+  };
+  els.consumedChart._chartData = {
+    empty: els.consumedChartEmpty,
+    points: daysAscending
+      .filter((day) => day.food + day.drink > 0)
+      .map((day) => ({ date: day.date, value: day.food + day.drink })),
+    color: "#2c6fb0",
+    suffix: " kcal"
+  };
+
+  // Re-render charts when container size changes (fixes scroll issue on mobile)
+  const chartsToObserve = [
+    { canvas: els.weightChart },
+    { canvas: els.burnedChart },
+    { canvas: els.consumedChart }
+  ];
+  
+  const resizeObserver = new ResizeObserver(() => {
+    chartsToObserve.forEach(({ canvas }) => {
+      if (canvas && canvas._chartData) {
+        renderLineChart({ canvas, ...canvas._chartData });
+      }
+    });
+  });
+  
+  chartsToObserve.forEach(({ canvas }) => {
+    if (canvas && canvas.parentElement) {
+      resizeObserver.observe(canvas.parentElement);
+    }
+  });
+
   if (!daysWithEntries.length) {
     els.historyList.innerHTML = '<p class="empty-state">Todavía no hay registros de comidas, bebidas o ejercicio.</p>';
     return;
@@ -1034,20 +1080,20 @@ async function renderHistory() {
 
 function renderLineChart({ canvas, empty, points, color, suffix }) {
   const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
   const width = Math.floor(
+    canvas.offsetWidth ||
     canvas.clientWidth ||
-    rect.width ||
+    canvas.parentElement?.offsetWidth ||
     canvas.parentElement?.clientWidth ||
-    canvas.parentElement?.getBoundingClientRect().width ||
     0
   );
   const height = Number(canvas.getAttribute("height")) || 220;
-  if (!width || rect.width === 0) {
-    // Element might be hidden, mark for later rendering
-    canvas._needsRender = { points, color, suffix };
+  
+  // If width is 0, element might be in DOM but with no dimensions yet
+  if (!width) {
     return;
   }
+  
   const scale = window.devicePixelRatio || 1;
   canvas.width = Math.floor(width * scale);
   canvas.height = Math.floor(height * scale);
