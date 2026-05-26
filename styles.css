@@ -632,19 +632,19 @@ main {
 
   main {
     width: 100%;
-    padding: 14px 12px calc(96px + env(safe-area-inset-bottom));
+    padding: 14px 12px 34px;
   }
 
   .topbar {
     position: static;
     align-items: flex-start;
     gap: 0.85rem;
-    padding: 16px 14px;
+    padding: 10px 14px;
     background: var(--surface);
   }
 
   .topbar h1 {
-    font-size: 1.45rem;
+    font-size: 1.22rem;
     line-height: 1.1;
   }
 
@@ -654,15 +654,15 @@ main {
   }
 
   .session {
-    width: 100%;
+    width: auto;
     justify-content: space-between;
     gap: 0.75rem;
-    border-top: 1px solid var(--line);
-    padding-top: 0.8rem;
+    border-top: 0;
+    padding-top: 0;
   }
 
   .session span {
-    max-width: 62vw;
+    max-width: 34vw;
     font-size: 0.86rem;
   }
 
@@ -687,18 +687,19 @@ main {
   }
 
   .tabs {
-    position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: max(10px, env(safe-area-inset-bottom));
+    position: sticky;
+    top: 0;
     z-index: 40;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.25rem;
-    border-radius: 12px;
+    margin: -14px -12px 14px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
     background: rgba(255, 255, 255, 0.96);
     padding: 0.35rem;
-    box-shadow: 0 16px 38px rgba(20, 31, 27, 0.18);
+    box-shadow: 0 10px 26px rgba(20, 31, 27, 0.1);
     backdrop-filter: blur(12px);
   }
 
