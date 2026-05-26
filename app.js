@@ -158,10 +158,16 @@ function bindEvents() {
   els.mealFoods.addEventListener("input", updateFoodPreview);
   els.mealFoods.addEventListener("change", updateFoodPreview);
   els.mealFoods.addEventListener("click", handleMealFoodsClick);
+  els.mealFoods.addEventListener("focusin", handleAutocompleteFocus);
+  els.mealFoods.addEventListener("input", handleAutocompleteInput);
   els.addFoodLine.addEventListener("click", () => addMealFoodRow());
   els.drinkSearch.addEventListener("input", updateDrinkPreview);
+  els.drinkSearch.addEventListener("focus", handleAutocompleteFocus);
+  els.drinkSearch.addEventListener("input", handleAutocompleteInput);
   els.drinkMl.addEventListener("input", updateDrinkPreview);
   els.exerciseSearch.addEventListener("input", updateExercisePreview);
+  els.exerciseSearch.addEventListener("focus", handleAutocompleteFocus);
+  els.exerciseSearch.addEventListener("input", handleAutocompleteInput);
   els.exerciseMinutes.addEventListener("input", updateExercisePreview);
   els.mealForm.addEventListener("submit", saveMeal);
   els.drinkForm.addEventListener("submit", saveDrink);
@@ -178,6 +184,7 @@ function bindEvents() {
   els.cancelFoodEdit.addEventListener("click", resetCatalogFoodForm);
   els.cancelDrinkEdit.addEventListener("click", resetCatalogDrinkForm);
   els.cancelExerciseEdit.addEventListener("click", resetCatalogExerciseForm);
+  document.addEventListener("click", closeAutocompleteOnOutsideClick);
 }
 
 function activateTab(tabName) {
@@ -656,6 +663,72 @@ function resetMealFoodRows() {
   els.mealFoods.querySelectorAll(".meal-food-row:not(:first-child)").forEach((row) => row.remove());
   els.foodSearch.value = "";
   els.foodGrams.value = "100";
+}
+
+function handleAutocompleteFocus(event) {
+  const input = getAutocompleteInput(event.target);
+  if (!input) return;
+  renderAutocomplete(input);
+}
+
+function handleAutocompleteInput(event) {
+  const input = getAutocompleteInput(event.target);
+  if (!input) return;
+  renderAutocomplete(input);
+}
+
+function closeAutocompleteOnOutsideClick(event) {
+  if (event.target.closest(".autocomplete-list") || getAutocompleteInput(event.target)) return;
+  closeAutocomplete();
+}
+
+function getAutocompleteInput(target) {
+  if (!target?.matches) return null;
+  return target.matches(".food-search, #drink-search, #exercise-search") ? target : null;
+}
+
+function getAutocompleteData(input) {
+  if (input.classList.contains("food-search")) {
+    return { items: state.foods, onSelect: updateFoodPreview };
+  }
+  if (input.id === "drink-search") {
+    return { items: state.drinks, onSelect: updateDrinkPreview };
+  }
+  if (input.id === "exercise-search") {
+    return { items: state.exercises, onSelect: updateExercisePreview };
+  }
+  return { items: [], onSelect: () => {} };
+}
+
+function renderAutocomplete(input) {
+  const { items, onSelect } = getAutocompleteData(input);
+  const query = input.value.trim().toLowerCase();
+  const matches = items
+    .filter((item) => !query || item.name.toLowerCase().includes(query))
+    .slice(0, 40);
+
+  closeAutocomplete();
+  if (!matches.length) return;
+
+  const list = document.createElement("div");
+  list.className = "autocomplete-list";
+  list.innerHTML = matches.map((item) => `
+    <button type="button" data-autocomplete-value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</button>
+  `).join("");
+
+  input.insertAdjacentElement("afterend", list);
+  list.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => {
+      input.value = button.dataset.autocompleteValue;
+      closeAutocomplete();
+      onSelect();
+    });
+  });
+}
+
+function closeAutocomplete() {
+  document.querySelectorAll(".autocomplete-list").forEach((list) => list.remove());
 }
 
 async function saveDrink(event) {
