@@ -33,12 +33,7 @@ const els = {
   authView: $("#auth-view"),
   appView: $("#app-view"),
   userEmail: $("#user-email"),
-  mobileUserEmail: $("#mobile-user-email"),
   logoutButton: $("#logout-button"),
-  mobileLogoutButton: $("#mobile-logout-button"),
-  mobileMenuButton: $("#mobile-menu-button"),
-  mobileMenuOverlay: $("#mobile-menu-overlay"),
-  mobileNav: $("#mobile-nav"),
   authForm: $("#auth-form"),
   authMessage: $("#auth-message"),
   currentDate: $("#current-date"),
@@ -149,26 +144,11 @@ function bindEvents() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => activateTab(tab.dataset.tab));
   });
-  document.querySelectorAll("[data-mobile-tab]").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      activateTab(tab.dataset.mobileTab);
-      closeMobileMenu();
-    });
-  });
-  els.mobileMenuButton.addEventListener("click", toggleMobileMenu);
-  els.mobileMenuOverlay.addEventListener("click", (event) => {
-    if (event.target === els.mobileMenuOverlay) closeMobileMenu();
-  });
-
   els.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await signIn();
   });
   els.logoutButton.addEventListener("click", () => supabaseClient.auth.signOut());
-  els.mobileLogoutButton.addEventListener("click", () => {
-    closeMobileMenu();
-    supabaseClient.auth.signOut();
-  });
   els.currentDate.addEventListener("change", () => {
     els.mealsDate.value = els.currentDate.value;
     loadDay();
@@ -202,22 +182,9 @@ function bindEvents() {
 
 function activateTab(tabName) {
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabName));
-  document.querySelectorAll("[data-mobile-tab]").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobileTab === tabName));
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tabName));
   if (tabName === "meals" && state.user) renderMealsTimeline();
   if (tabName === "history" && state.user) requestAnimationFrame(renderHistory);
-}
-
-function toggleMobileMenu() {
-  const isOpen = els.mobileMenuOverlay.classList.toggle("hidden") === false;
-  els.mobileMenuButton.setAttribute("aria-expanded", String(isOpen));
-  document.body.classList.toggle("mobile-menu-open", isOpen);
-}
-
-function closeMobileMenu() {
-  els.mobileMenuOverlay.classList.add("hidden");
-  els.mobileMenuButton.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("mobile-menu-open");
 }
 
 async function signIn(options = {}) {
@@ -227,19 +194,14 @@ async function signIn(options = {}) {
   const password = options.password || $("#auth-password").value;
   const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   messageEl.textContent = error ? error.message : "";
-  if (!error) closeMobileMenu();
 }
 
 function renderSession() {
   const logged = Boolean(state.user);
   els.authView.classList.toggle("hidden", logged);
   els.appView.classList.toggle("hidden", !logged);
-  els.mobileMenuButton.classList.toggle("hidden", !logged);
-  els.mobileNav.classList.toggle("hidden", !logged);
   els.logoutButton.classList.toggle("hidden", !logged);
   els.userEmail.textContent = state.user?.email || "";
-  els.mobileUserEmail.textContent = state.user?.email || "";
-  if (!logged) closeMobileMenu();
 }
 
 function isAdmin() {
