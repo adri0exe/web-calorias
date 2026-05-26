@@ -578,12 +578,56 @@ main {
   margin: 0 0 0.75rem;
 }
 
-.chart-card canvas {
-  display: block;
+.simple-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 8px;
+  min-height: 220px;
   width: 100%;
-  max-width: 100%;
-  height: 220px;
+}
+
+.chart-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   min-width: 0;
+}
+
+.bar-container {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.bar {
+  width: 80%;
+  max-width: 40px;
+  border-radius: 4px;
+  min-height: 4px;
+  transition: all 200ms ease;
+}
+
+.bar-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-date {
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .chart-empty {
@@ -896,11 +940,16 @@ main {
     overflow: hidden;
   }
 
-  .chart-card canvas {
-    height: 190px;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
+  .simple-chart {
+    min-height: 190px;
+  }
+
+  .bar-label {
+    font-size: 0.7rem;
+  }
+
+  .bar-date {
+    font-size: 0.6rem;
   }
 
   .chart-empty {

@@ -142,14 +142,6 @@ function init() {
   let scrollTimeout;
   window.addEventListener("scroll", () => {
     clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(() => {
-      const charts = [els.weightChart, els.burnedChart, els.consumedChart];
-      charts.forEach((canvas) => {
-        if (canvas && canvas._chartData) {
-          renderLineChart({ canvas, ...canvas._chartData });
-        }
-      });
-    }, 150);
   }, { passive: true });
 }
 
@@ -1036,27 +1028,6 @@ async function renderHistory() {
     suffix: " kcal"
   };
 
-  // Re-render charts when container size changes (fixes scroll issue on mobile)
-  const chartsToObserve = [
-    { canvas: els.weightChart },
-    { canvas: els.burnedChart },
-    { canvas: els.consumedChart }
-  ];
-  
-  const resizeObserver = new ResizeObserver(() => {
-    chartsToObserve.forEach(({ canvas }) => {
-      if (canvas && canvas._chartData) {
-        renderLineChart({ canvas, ...canvas._chartData });
-      }
-    });
-  });
-  
-  chartsToObserve.forEach(({ canvas }) => {
-    if (canvas && canvas.parentElement) {
-      resizeObserver.observe(canvas.parentElement);
-    }
-  });
-
   if (!daysWithEntries.length) {
     els.historyList.innerHTML = '<p class="empty-state">Todavía no hay registros de comidas, bebidas o ejercicio.</p>';
     return;
@@ -1079,99 +1050,41 @@ async function renderHistory() {
 }
 
 function renderLineChart({ canvas, empty, points, color, suffix }) {
-  const ctx = canvas.getContext("2d");
-  const width = Math.floor(
-    canvas.offsetWidth ||
-    canvas.clientWidth ||
-    canvas.parentElement?.offsetWidth ||
-    canvas.parentElement?.clientWidth ||
-    0
-  );
-  const height = Number(canvas.getAttribute("height")) || 220;
-  
-  // If width is 0, element might be in DOM but with no dimensions yet
-  if (!width) {
-    return;
-  }
-  
-  const scale = window.devicePixelRatio || 1;
-  canvas.width = Math.floor(width * scale);
-  canvas.height = Math.floor(height * scale);
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-
   const hasData = points.length > 0;
   canvas.classList.toggle("hidden", !hasData);
   empty.classList.toggle("hidden", hasData);
-  if (!hasData) return;
-
-  const padding = { top: 18, right: 18, bottom: 34, left: 48 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const values = points.map((point) => point.value);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const range = maxValue - minValue || 1;
-  const low = minValue - range * 0.08;
-  const high = maxValue + range * 0.08;
-  const valueRange = high - low || 1;
-  const xFor = (index) => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
-  const yFor = (value) => padding.top + (1 - (value - low) / valueRange) * plotHeight;
-
-  ctx.strokeStyle = "#dce3dd";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let i = 0; i < 4; i += 1) {
-    const y = padding.top + (plotHeight / 3) * i;
-    ctx.moveTo(padding.left, y);
-    ctx.lineTo(width - padding.right, y);
+  
+  if (!hasData) {
+    canvas.innerHTML = "";
+    return;
   }
-  ctx.stroke();
 
-  ctx.fillStyle = "#66736d";
-  ctx.font = "12px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
-  [high, (high + low) / 2, low].forEach((value) => {
-    ctx.fillText(formatChartValue(value, suffix), padding.left - 8, yFor(value));
-  });
+  // Get only last 7 points for clarity
+  const displayPoints = points.slice(-7);
+  const values = displayPoints.map((p) => p.value);
+  const maxValue = Math.max(...values);
+  const minValue = Math.min(...values);
+  const range = maxValue - minValue || 1;
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  points.forEach((point, index) => {
-    const x = xFor(index);
-    const y = yFor(point.value);
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
+  const chartHTML = displayPoints.map((point) => {
+    const percentage = ((point.value - minValue) / range) * 100;
+    const displayValue = formatChartValue(point.value, suffix);
+    const shortDate = formatShortDate(point.date);
+    
+    return `
+      <div class="chart-bar">
+        <div class="bar-container">
+          <div class="bar" style="height: ${Math.max(5, percentage)}%; background-color: ${color};"></div>
+        </div>
+        <span class="bar-label">${displayValue}</span>
+        <span class="bar-date">${shortDate}</span>
+      </div>
+    `;
+  }).join("");
 
-  ctx.fillStyle = color;
-  points.forEach((point, index) => {
-    const x = xFor(index);
-    const y = yFor(point.value);
-    ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  const first = points[0];
-  const last = points[points.length - 1];
-  ctx.fillStyle = "#66736d";
-  ctx.textBaseline = "alphabetic";
-  ctx.textAlign = "left";
-  ctx.fillText(formatShortDate(first.date), padding.left, height - 10);
-  ctx.textAlign = "right";
-  ctx.fillText(formatShortDate(last.date), width - padding.right, height - 10);
-
-  ctx.fillStyle = "#1d2522";
-  ctx.font = "700 13px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText(formatChartValue(last.value, suffix), width - padding.right, padding.top + 12);
+  canvas.innerHTML = chartHTML;
 }
+
 
 function updateFoodPreview() {
   const items = getMealFoodItems().filter((item) => item.food && item.grams > 0);
