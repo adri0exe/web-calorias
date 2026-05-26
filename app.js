@@ -138,6 +138,20 @@ function init() {
   window.addEventListener("resize", () => {
     if (state.user && $("#history").classList.contains("active")) renderHistory();
   });
+
+  let scrollTimeout;
+  window.addEventListener("scroll", () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      const charts = [els.weightChart, els.burnedChart, els.consumedChart];
+      charts.forEach((canvas) => {
+        if (canvas && canvas._needsRender) {
+          const { points, color, suffix } = canvas._needsRender;
+          renderLineChart({ canvas, empty: canvas.nextElementSibling, points, color, suffix });
+        }
+      });
+    }, 100);
+  }, { passive: true });
 }
 
 function bindEvents() {
@@ -1020,16 +1034,18 @@ async function renderHistory() {
 
 function renderLineChart({ canvas, empty, points, color, suffix }) {
   const ctx = canvas.getContext("2d");
+  const rect = canvas.getBoundingClientRect();
   const width = Math.floor(
     canvas.clientWidth ||
-    canvas.getBoundingClientRect().width ||
+    rect.width ||
     canvas.parentElement?.clientWidth ||
     canvas.parentElement?.getBoundingClientRect().width ||
     0
   );
   const height = Number(canvas.getAttribute("height")) || 220;
-  if (!width) {
-    requestAnimationFrame(() => renderLineChart({ canvas, empty, points, color, suffix }));
+  if (!width || rect.width === 0) {
+    // Element might be hidden, mark for later rendering
+    canvas._needsRender = { points, color, suffix };
     return;
   }
   const scale = window.devicePixelRatio || 1;
