@@ -662,7 +662,16 @@ main {
 .donut-segment {
   fill: none;
   stroke-width: 22;
-  transition: stroke-dasharray 200ms ease;
+  cursor: pointer;
+  outline: none;
+  transition: opacity 160ms ease, stroke-width 160ms ease, stroke-dasharray 200ms ease;
+}
+
+.donut-segment:hover,
+.donut-segment:focus,
+.donut-segment.is-active {
+  opacity: 0.86;
+  stroke-width: 26;
 }
 
 .donut-total {
@@ -682,6 +691,34 @@ main {
 .donut-total span {
   color: var(--muted);
   font-size: 0.68rem;
+}
+
+.donut-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: grid;
+  min-width: 112px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 8px 10px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.donut-tooltip strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.donut-tooltip span {
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .chart-empty {

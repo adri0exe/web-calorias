@@ -1163,6 +1163,11 @@ function renderDonutChart({ canvas, empty, segments }) {
         stroke="${segment.color}"
         stroke-dasharray="${dash}"
         stroke-dashoffset="${-offset}"
+        data-label="${escapeHtml(segment.label)}"
+        data-value="${escapeHtml(fmtKcal(segment.value))}"
+        tabindex="0"
+        role="button"
+        aria-label="${escapeHtml(`${segment.label}: ${fmtKcal(segment.value)}`)}"
       ></circle>
     `;
     offset += length;
@@ -1179,8 +1184,49 @@ function renderDonutChart({ canvas, empty, segments }) {
         <strong>${fmtKcal(total)}</strong>
         <span>Total</span>
       </div>
+      <div class="donut-tooltip hidden" role="status"></div>
     </div>
   `;
+  bindDonutTooltip(canvas);
+}
+
+function bindDonutTooltip(canvas) {
+  if (canvas._donutCleanup) canvas._donutCleanup();
+
+  const tooltip = canvas.querySelector(".donut-tooltip");
+  const segments = canvas.querySelectorAll(".donut-segment");
+  if (!tooltip || !segments.length) return;
+
+  const show = (segment) => {
+    tooltip.innerHTML = `
+      <strong>${segment.dataset.label}</strong>
+      <span>${segment.dataset.value}</span>
+    `;
+    tooltip.classList.remove("hidden");
+    segments.forEach((item) => item.classList.toggle("is-active", item === segment));
+  };
+  const hide = () => {
+    tooltip.classList.add("hidden");
+    segments.forEach((item) => item.classList.remove("is-active"));
+  };
+
+  segments.forEach((segment) => {
+    segment.addEventListener("mouseenter", () => show(segment));
+    segment.addEventListener("focus", () => show(segment));
+    segment.addEventListener("click", (event) => {
+      event.stopPropagation();
+      show(segment);
+    });
+  });
+  canvas.addEventListener("mouseleave", hide);
+  canvas.addEventListener("focusout", (event) => {
+    if (!canvas.contains(event.relatedTarget)) hide();
+  });
+  const onDocumentClick = (event) => {
+    if (!canvas.contains(event.target)) hide();
+  };
+  document.addEventListener("click", onDocumentClick);
+  canvas._donutCleanup = () => document.removeEventListener("click", onDocumentClick);
 }
 
 
