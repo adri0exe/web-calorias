@@ -70,6 +70,7 @@ const els = {
   profileForm: $("#profile-form"),
   weightForm: $("#weight-form"),
   weightValue: $("#weight-value"),
+  toggleWeightList: $("#toggle-weight-list"),
   weightList: $("#weight-list"),
   refreshHistory: $("#refresh-history"),
   weightChart: $("#weight-chart"),
@@ -184,6 +185,7 @@ function bindEvents() {
   els.profileForm.addEventListener("input", renderTargetPreview);
   els.profileForm.addEventListener("submit", saveProfile);
   els.weightForm.addEventListener("submit", saveWeight);
+  els.toggleWeightList.addEventListener("click", toggleWeightList);
   els.refreshHistory.addEventListener("click", loadAll);
   els.mealsDate.addEventListener("change", renderMealsTimeline);
   els.refreshMeals.addEventListener("click", renderMealsTimeline);
@@ -907,6 +909,7 @@ function renderDay() {
 }
 
 function renderWeights() {
+  updateWeightListToggle();
   els.weightList.innerHTML = state.weights.slice(0, 8).map((item) => `
     <li>
       <div class="entry-main">
@@ -915,6 +918,18 @@ function renderWeights() {
       </div>
     </li>
   `).join("");
+}
+
+function toggleWeightList() {
+  const isOpen = els.weightList.classList.toggle("hidden") === false;
+  els.toggleWeightList.setAttribute("aria-expanded", String(isOpen));
+  els.toggleWeightList.textContent = isOpen ? "Ocultar pesos" : "Mostrar pesos";
+}
+
+function updateWeightListToggle() {
+  const isOpen = !els.weightList.classList.contains("hidden");
+  els.toggleWeightList.setAttribute("aria-expanded", String(isOpen));
+  els.toggleWeightList.textContent = isOpen ? "Ocultar pesos" : "Mostrar pesos";
 }
 
 async function renderMealsTimeline() {
