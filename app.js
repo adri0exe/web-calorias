@@ -71,7 +71,6 @@ const els = {
   weightForm: $("#weight-form"),
   weightValue: $("#weight-value"),
   weightList: $("#weight-list"),
-  historyList: $("#history-list"),
   refreshHistory: $("#refresh-history"),
   weightChart: $("#weight-chart"),
   weightChartEmpty: $("#weight-chart-empty"),
@@ -1039,25 +1038,6 @@ async function renderHistory() {
     segments: buildMealTypeSegments(mealsResult.data || [])
   };
 
-  if (!daysWithEntries.length) {
-    els.historyList.innerHTML = '<p class="empty-state">Todavía no hay registros de comidas, bebidas o ejercicio.</p>';
-    return;
-  }
-
-  els.historyList.innerHTML = daysWithEntries.map((day) => {
-    const consumed = day.food + day.drink;
-    const net = consumed - day.exercise;
-    return `
-      <div class="history-item">
-        <strong>${formatDate(day.date)}</strong>
-        <span>Comidas: ${fmtKcal(day.food)}</span>
-        <span>Bebidas: ${fmtKcal(day.drink)}</span>
-        <span>Ejercicio: ${fmtKcal(day.exercise)}</span>
-        <span>Balance: ${fmtKcal(net)}</span>
-        <span>Objetivo: ${fmtKcal(state.profile?.target_kcal || 0)}</span>
-      </div>
-    `;
-  }).join("");
 }
 
 function renderLineChart({ canvas, empty, points, color, suffix }) {
@@ -1199,15 +1179,6 @@ function renderDonutChart({ canvas, empty, segments }) {
         <strong>${fmtKcal(total)}</strong>
         <span>Total</span>
       </div>
-    </div>
-    <div class="donut-legend">
-      ${segments.map((segment) => `
-        <div class="donut-legend-item">
-          <span class="legend-color" style="background-color: ${segment.color};"></span>
-          <span>${segment.label}</span>
-          <strong>${fmtKcal(segment.value)}</strong>
-        </div>
-      `).join("")}
     </div>
   `;
 }
