@@ -91,6 +91,7 @@ const els = {
   catalogFoodPublic: $("#catalog-food-public"),
   saveCatalogFood: $("#save-catalog-food"),
   cancelFoodEdit: $("#cancel-food-edit"),
+  toggleFoodCatalog: $("#toggle-food-catalog"),
   catalogFoodList: $("#catalog-food-list"),
   catalogDrinkForm: $("#catalog-drink-form"),
   catalogDrinkId: $("#catalog-drink-id"),
@@ -100,6 +101,7 @@ const els = {
   catalogDrinkPublic: $("#catalog-drink-public"),
   saveCatalogDrink: $("#save-catalog-drink"),
   cancelDrinkEdit: $("#cancel-drink-edit"),
+  toggleDrinkCatalog: $("#toggle-drink-catalog"),
   catalogDrinkList: $("#catalog-drink-list"),
   catalogExerciseForm: $("#catalog-exercise-form"),
   catalogExerciseId: $("#catalog-exercise-id"),
@@ -109,6 +111,7 @@ const els = {
   catalogExercisePublic: $("#catalog-exercise-public"),
   saveCatalogExercise: $("#save-catalog-exercise"),
   cancelExerciseEdit: $("#cancel-exercise-edit"),
+  toggleExerciseCatalog: $("#toggle-exercise-catalog"),
   catalogExerciseList: $("#catalog-exercise-list")
 };
 
@@ -190,6 +193,9 @@ function bindEvents() {
   els.cancelFoodEdit.addEventListener("click", resetCatalogFoodForm);
   els.cancelDrinkEdit.addEventListener("click", resetCatalogDrinkForm);
   els.cancelExerciseEdit.addEventListener("click", resetCatalogExerciseForm);
+  els.toggleFoodCatalog.addEventListener("click", () => toggleCatalogList("food"));
+  els.toggleDrinkCatalog.addEventListener("click", () => toggleCatalogList("drink"));
+  els.toggleExerciseCatalog.addEventListener("click", () => toggleCatalogList("exercise"));
   document.addEventListener("click", closeAutocompleteOnOutsideClick);
 }
 
@@ -299,6 +305,9 @@ function renderCatalogs() {
   els.catalogFoodPublicLabel.classList.toggle("hidden", !isAdmin());
   els.catalogDrinkPublicLabel.classList.toggle("hidden", !isAdmin());
   els.catalogExercisePublicLabel.classList.toggle("hidden", !isAdmin());
+  updateCatalogToggle("food");
+  updateCatalogToggle("drink");
+  updateCatalogToggle("exercise");
 
   els.catalogFoodList.innerHTML = state.foods.map((food) => {
     const editable = canEditCatalogItem(food);
@@ -369,6 +378,29 @@ function renderCatalogs() {
   document.querySelectorAll("[data-delete-catalog-exercise]").forEach((button) => {
     button.addEventListener("click", () => deleteCatalogExercise(button.dataset.deleteCatalogExercise));
   });
+}
+
+function toggleCatalogList(type) {
+  const { button, list, label } = getCatalogToggleElements(type);
+  const isOpen = list.classList.toggle("hidden") === false;
+  button.setAttribute("aria-expanded", String(isOpen));
+  button.textContent = `${isOpen ? "Ocultar" : "Mostrar"} ${label}`;
+}
+
+function updateCatalogToggle(type) {
+  const { button, list, label } = getCatalogToggleElements(type);
+  const isOpen = !list.classList.contains("hidden");
+  button.setAttribute("aria-expanded", String(isOpen));
+  button.textContent = `${isOpen ? "Ocultar" : "Mostrar"} ${label}`;
+}
+
+function getCatalogToggleElements(type) {
+  const catalogs = {
+    food: { button: els.toggleFoodCatalog, list: els.catalogFoodList, label: "alimentos" },
+    drink: { button: els.toggleDrinkCatalog, list: els.catalogDrinkList, label: "bebidas" },
+    exercise: { button: els.toggleExerciseCatalog, list: els.catalogExerciseList, label: "deportes" }
+  };
+  return catalogs[type];
 }
 
 function renderProfileForm() {

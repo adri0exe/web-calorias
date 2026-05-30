@@ -552,6 +552,11 @@ main {
   padding-right: 0.2rem;
 }
 
+.catalog-toggle {
+  margin-top: 0.85rem;
+  width: 100%;
+}
+
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
