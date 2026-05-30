@@ -79,6 +79,8 @@ const els = {
   burnedChartEmpty: $("#burned-chart-empty"),
   consumedChart: $("#consumed-chart"),
   consumedChartEmpty: $("#consumed-chart-empty"),
+  mealTypeChart: $("#meal-type-chart"),
+  mealTypeChartEmpty: $("#meal-type-chart-empty"),
   catalogFoodForm: $("#catalog-food-form"),
   catalogFoodId: $("#catalog-food-id"),
   catalogFoodName: $("#catalog-food-name"),
@@ -948,7 +950,7 @@ async function renderHistory() {
   if (!$("#history").classList.contains("active")) return;
 
   const [mealsResult, drinksResult, exercisesResult] = await Promise.all([
-    supabaseClient.from("meal_entries").select("entry_date, calories").eq("user_id", state.user.id),
+    supabaseClient.from("meal_entries").select("entry_date, calories, meal_type").eq("user_id", state.user.id),
     supabaseClient.from("drink_entries").select("entry_date, calories").eq("user_id", state.user.id),
     supabaseClient.from("exercise_entries").select("entry_date, calories").eq("user_id", state.user.id)
   ]);
@@ -1001,6 +1003,11 @@ async function renderHistory() {
     color: "#2c6fb0",
     suffix: " kcal"
   });
+  renderDonutChart({
+    canvas: els.mealTypeChart,
+    empty: els.mealTypeChartEmpty,
+    segments: buildMealTypeSegments(mealsResult.data || [])
+  });
 
   // Store chart data for re-rendering on resize
   els.weightChart._chartData = {
@@ -1026,6 +1033,10 @@ async function renderHistory() {
       .map((day) => ({ date: day.date, value: day.food + day.drink })),
     color: "#2c6fb0",
     suffix: " kcal"
+  };
+  els.mealTypeChart._chartData = {
+    empty: els.mealTypeChartEmpty,
+    segments: buildMealTypeSegments(mealsResult.data || [])
   };
 
   if (!daysWithEntries.length) {
@@ -1053,36 +1064,152 @@ function renderLineChart({ canvas, empty, points, color, suffix }) {
   const hasData = points.length > 0;
   canvas.classList.toggle("hidden", !hasData);
   empty.classList.toggle("hidden", hasData);
-  
+
   if (!hasData) {
     canvas.innerHTML = "";
     return;
   }
 
-  // Get only last 7 points for clarity
   const displayPoints = points.slice(-7);
   const values = displayPoints.map((p) => p.value);
   const maxValue = Math.max(...values);
   const minValue = Math.min(...values);
-  const range = maxValue - minValue || 1;
+  const hasFlatValues = maxValue === minValue;
+  const range = hasFlatValues ? 1 : maxValue - minValue;
+  const width = 360;
+  const height = 220;
+  const padding = { top: 18, right: 18, bottom: 42, left: 44 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
 
-  const chartHTML = displayPoints.map((point) => {
-    const percentage = ((point.value - minValue) / range) * 100;
-    const displayValue = formatChartValue(point.value, suffix);
-    const shortDate = formatShortDate(point.date);
-    
+  const coords = displayPoints.map((point, index) => {
+    const x = displayPoints.length === 1
+      ? padding.left + plotWidth / 2
+      : padding.left + (plotWidth * index) / (displayPoints.length - 1);
+    const y = hasFlatValues
+      ? padding.top + plotHeight / 2
+      : padding.top + plotHeight - ((point.value - minValue) / range) * plotHeight;
+    return { ...point, x, y };
+  });
+
+  const linePoints = coords.map((point) => `${point.x},${point.y}`).join(" ");
+  const areaPoints = [
+    `${coords[0].x},${padding.top + plotHeight}`,
+    linePoints,
+    `${coords[coords.length - 1].x},${padding.top + plotHeight}`
+  ].join(" ");
+  const gridLines = [0, 0.5, 1].map((step) => {
+    const y = padding.top + plotHeight * step;
+    const value = hasFlatValues ? maxValue : maxValue - range * step;
     return `
-      <div class="chart-bar">
-        <div class="bar-container">
-          <div class="bar" style="height: ${Math.max(5, percentage)}%; background-color: ${color};"></div>
-        </div>
-        <span class="bar-label">${displayValue}</span>
-        <span class="bar-date">${shortDate}</span>
-      </div>
+      <g class="line-chart-grid">
+        <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"></line>
+        <text x="${padding.left - 8}" y="${y + 4}">${formatChartValue(value, suffix)}</text>
+      </g>
     `;
   }).join("");
 
-  canvas.innerHTML = chartHTML;
+  canvas.innerHTML = `
+    <svg class="line-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Gráfica de evolución">
+      ${gridLines}
+      <polygon class="line-chart-area" points="${areaPoints}" style="fill: ${color};"></polygon>
+      <polyline class="line-chart-line" points="${linePoints}" style="stroke: ${color};"></polyline>
+      ${coords.map((point) => `
+        <g class="line-chart-point">
+          <circle cx="${point.x}" cy="${point.y}" r="4.5" style="fill: ${color};"></circle>
+          <text class="point-value" x="${point.x}" y="${Math.max(12, point.y - 9)}">${formatChartValue(point.value, suffix)}</text>
+          <text class="point-date" x="${point.x}" y="${height - 13}">${formatShortDate(point.date)}</text>
+        </g>
+      `).join("")}
+    </svg>
+  `;
+}
+
+function buildMealTypeSegments(meals) {
+  const mealTypes = [
+    { key: "Desayuno", label: "Desayuno", color: "#217a5b" },
+    { key: "Almuerzo", label: "Almuerzo", color: "#d08a1d" },
+    { key: "Cena", label: "Cena", color: "#2c6fb0" },
+    { key: "Snack", label: "Snack", color: "#8a5bb8" }
+  ];
+  const totals = new Map(mealTypes.map((item) => [item.key, 0]));
+
+  meals.forEach((meal) => {
+    const key = normalizeMealTypeForChart(meal.meal_type);
+    if (!key) return;
+    totals.set(key, totals.get(key) + Number(meal.calories || 0));
+  });
+
+  return mealTypes.map((item) => ({ ...item, value: totals.get(item.key) || 0 }));
+}
+
+function normalizeMealTypeForChart(mealType) {
+  const normalized = String(mealType || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (normalized === "desayuno") return "Desayuno";
+  if (normalized === "almuerzo" || normalized === "comida") return "Almuerzo";
+  if (normalized === "cena") return "Cena";
+  if (normalized === "snack" || normalized === "merienda") return "Snack";
+  return null;
+}
+
+function renderDonutChart({ canvas, empty, segments }) {
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+  const hasData = total > 0;
+  canvas.classList.toggle("hidden", !hasData);
+  empty.classList.toggle("hidden", hasData);
+
+  if (!hasData) {
+    canvas.innerHTML = "";
+    return;
+  }
+
+  const radius = 70;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const rings = segments.filter((segment) => segment.value > 0).map((segment) => {
+    const length = (segment.value / total) * circumference;
+    const dash = `${length} ${circumference - length}`;
+    const ring = `
+      <circle
+        class="donut-segment"
+        cx="90"
+        cy="90"
+        r="${radius}"
+        stroke="${segment.color}"
+        stroke-dasharray="${dash}"
+        stroke-dashoffset="${-offset}"
+      ></circle>
+    `;
+    offset += length;
+    return ring;
+  }).join("");
+
+  canvas.innerHTML = `
+    <div class="donut-visual">
+      <svg class="donut-svg" viewBox="0 0 180 180" role="img" aria-label="Calorías consumidas por tipo de comida">
+        <circle class="donut-track" cx="90" cy="90" r="${radius}"></circle>
+        ${rings}
+      </svg>
+      <div class="donut-total">
+        <strong>${fmtKcal(total)}</strong>
+        <span>Total</span>
+      </div>
+    </div>
+    <div class="donut-legend">
+      ${segments.map((segment) => `
+        <div class="donut-legend-item">
+          <span class="legend-color" style="background-color: ${segment.color};"></span>
+          <span>${segment.label}</span>
+          <strong>${fmtKcal(segment.value)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 
