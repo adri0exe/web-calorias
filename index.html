@@ -13,12 +13,8 @@
   <body>
     <header class="topbar">
       <div>
-        <p class="eyebrow">Control personal</p>
+        <p id="greeting" class="eyebrow">👋 Hola</p>
         <h1>Contador de calorías</h1>
-      </div>
-      <div class="session">
-        <span id="user-email"></span>
-        <button id="logout-button" class="ghost hidden" type="button">Salir</button>
       </div>
     </header>
 
@@ -50,46 +46,83 @@
       </section>
 
       <section id="app-view" class="app-shell hidden">
-        <nav class="tabs" aria-label="Secciones">
-          <button class="tab active" data-tab="today" type="button">Hoy</button>
-          <button class="tab" data-tab="meals" type="button">Comidas</button>
-          <button class="tab" data-tab="history" type="button">Registro</button>
-          <button class="tab" data-tab="catalog" type="button">Catálogo</button>
-          <button class="tab" data-tab="profile" type="button">Perfil</button>
+        <nav class="tabs bottom-nav" aria-label="Secciones">
+          <button class="tab active" data-tab="today" type="button"><span class="tab-icon">🏠</span><span>Hoy</span></button>
+          <button class="tab" data-tab="meals" type="button"><span class="tab-icon">🍽️</span><span>Comidas</span></button>
+          <button class="tab" data-tab="history" type="button"><span class="tab-icon">📊</span><span>Registro</span></button>
+          <button class="tab" data-tab="catalog" type="button"><span class="tab-icon">📚</span><span>Catalogo</span></button>
+          <button class="tab" data-tab="profile" type="button"><span class="tab-icon">👤</span><span>Perfil</span></button>
         </nav>
         <section id="today" class="tab-panel active">
-          <div class="dashboard">
-            <article class="metric">
-              <span>Objetivo</span>
-              <strong id="target-kcal">0 kcal</strong>
-            </article>
-            <article class="metric">
-              <span>Comidas</span>
-              <strong id="food-kcal">0 kcal</strong>
-            </article>
-            <article class="metric">
-              <span>Bebidas</span>
-              <strong id="drink-kcal">0 kcal</strong>
-            </article>
-            <article class="metric">
-              <span>Ejercicio</span>
-              <strong id="exercise-kcal">0 kcal</strong>
-            </article>
-            <article class="metric accent">
-              <span>Balance</span>
-              <strong id="net-kcal">0 kcal</strong>
-            </article>
-          </div>
-
-          <div class="date-row">
+          <div class="date-row today-date">
             <label>
               Fecha
+              <button id="current-date-display" class="date-display" type="button">2 de junio de 2026</button>
               <input id="current-date" type="date">
             </label>
           </div>
 
-          <div class="grid two">
-            <section class="panel">
+          <div class="dashboard">
+            <article class="metric">
+              <span class="metric-icon">🎯</span>
+              <span class="metric-label">Objetivo</span>
+              <strong id="target-kcal">0 kcal</strong>
+            </article>
+            <article class="metric metric-link" data-entry-target="meal" role="button" tabindex="0" aria-label="Ir a añadir comida">
+              <span class="metric-icon">🍽️</span>
+              <span class="metric-label">Comidas</span>
+              <strong id="food-kcal">0 kcal</strong>
+            </article>
+            <article class="metric metric-link" data-entry-target="drink" role="button" tabindex="0" aria-label="Ir a añadir bebida">
+              <span class="metric-icon">🥤</span>
+              <span class="metric-label">Bebidas</span>
+              <strong id="drink-kcal">0 kcal</strong>
+            </article>
+            <article class="metric metric-link" data-entry-target="exercise" role="button" tabindex="0" aria-label="Ir a añadir ejercicio">
+              <span class="metric-icon">🏃</span>
+              <span class="metric-label">Ejercicio</span>
+              <strong id="exercise-kcal">0 kcal</strong>
+            </article>
+            <article class="metric accent">
+              <span class="metric-icon">⚖️</span>
+              <span class="metric-label">Balance</span>
+              <div class="balance-widget" aria-label="Progreso del objetivo diario">
+                <div class="weight-progress">
+                  <span>Peso actual</span>
+                  <strong id="current-weight-display">0 kg</strong>
+                  <small id="weekly-weight-change">Sin cambios esta semana</small>
+                </div>
+                <div class="balance-copy">
+                  <strong id="net-kcal">0 kcal</strong>
+                  <span id="balance-caption">restantes</span>
+                </div>
+                <div class="balance-progress-row">
+                  <div id="balance-bar" class="balance-bar" style="--progress: 0%;"></div>
+                  <span id="balance-percent">0%</span>
+                </div>
+                <div class="macro-list" aria-label="Macronutrientes del dia">
+                  <div class="macro-row">
+                    <span>Proteinas</span>
+                    <div id="protein-bar" class="macro-bar" style="--progress: 0%;"></div>
+                    <strong id="protein-total">0g</strong>
+                  </div>
+                  <div class="macro-row">
+                    <span>Carbos</span>
+                    <div id="carbs-bar" class="macro-bar" style="--progress: 0%;"></div>
+                    <strong id="carbs-total">0g</strong>
+                  </div>
+                  <div class="macro-row">
+                    <span>Grasas</span>
+                    <div id="fat-bar" class="macro-bar" style="--progress: 0%;"></div>
+                    <strong id="fat-total">0g</strong>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div id="entry-forms" class="grid two">
+            <section id="meal-entry-panel" class="panel">
               <div class="panel-heading">
                 <h2>Comidas</h2>
                 <span id="meal-total" class="pill">0 kcal</span>
@@ -128,7 +161,7 @@
               </form>
             </section>
 
-            <section class="panel">
+            <section id="drink-entry-panel" class="panel">
               <div class="panel-heading">
                 <h2>Bebidas</h2>
                 <span id="drink-total" class="pill">0 kcal</span>
@@ -151,7 +184,7 @@
               </form>
             </section>
 
-            <section class="panel">
+            <section id="exercise-entry-panel" class="panel">
               <div class="panel-heading">
                 <h2>Ejercicio</h2>
                 <span id="exercise-total" class="pill">0 kcal</span>
@@ -178,6 +211,7 @@
         </section>
 
         <section id="meals" class="tab-panel">
+          <div id="meals-entry-forms"></div>
           <section class="panel">
             <div class="panel-heading">
               <h2>Comidas</h2>
@@ -199,6 +233,10 @@
               <h2>Datos personales</h2>
               <form id="profile-form" class="stack">
                 <div class="form-grid">
+                  <label>
+                    Nombre
+                    <input id="display-name" type="text" autocomplete="given-name" maxlength="60" required>
+                  </label>
                   <label>
                     Edad
                     <input id="age" type="number" min="10" max="100" required>
@@ -289,6 +327,7 @@
               <article class="chart-card">
                 <h3>Calorias por comida</h3>
                 <div id="meal-type-chart" class="donut-chart"></div>
+                <p id="meal-type-days" class="chart-meta hidden">Dias registrados: 0</p>
                 <p id="meal-type-chart-empty" class="chart-empty hidden">Añade comidas para ver la gráfica circular.</p>
               </article>
             </div>

@@ -32,11 +32,13 @@ const els = {
   setupWarning: $("#setup-warning"),
   authView: $("#auth-view"),
   appView: $("#app-view"),
+  greeting: $("#greeting"),
   userEmail: $("#user-email"),
   logoutButton: $("#logout-button"),
   authForm: $("#auth-form"),
   authMessage: $("#auth-message"),
   currentDate: $("#current-date"),
+  currentDateDisplay: $("#current-date-display"),
   weightDate: $("#weight-date"),
   mealsDate: $("#meals-date"),
   foodSearch: $("#food-search"),
@@ -61,6 +63,7 @@ const els = {
   exerciseForm: $("#exercise-form"),
   exerciseList: $("#exercise-list"),
   age: $("#age"),
+  displayName: $("#display-name"),
   sex: $("#sex"),
   height: $("#height"),
   weight: $("#weight"),
@@ -80,6 +83,7 @@ const els = {
   consumedChart: $("#consumed-chart"),
   consumedChartEmpty: $("#consumed-chart-empty"),
   mealTypeChart: $("#meal-type-chart"),
+  mealTypeDays: $("#meal-type-days"),
   mealTypeChartEmpty: $("#meal-type-chart-empty"),
   catalogFoodForm: $("#catalog-food-form"),
   catalogFoodId: $("#catalog-food-id"),
@@ -117,9 +121,11 @@ const els = {
 };
 
 function init() {
+  moveEntryFormsToMeals();
   els.currentDate.value = todayISO();
   els.weightDate.value = todayISO();
   els.mealsDate.value = todayISO();
+  renderCurrentDateDisplay();
   els.setupWarning.classList.toggle("hidden", isConfigured);
   bindEvents();
 
@@ -151,17 +157,33 @@ function init() {
 }
 
 function bindEvents() {
-  document.querySelectorAll(".tab").forEach((tab) => {
+  document.querySelectorAll(".bottom-nav .tab").forEach((tab) => {
     tab.addEventListener("click", () => activateTab(tab.dataset.tab));
+  });
+  document.querySelectorAll("[data-entry-target]").forEach((card) => {
+    card.addEventListener("click", () => goToEntryForm(card.dataset.entryTarget));
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      goToEntryForm(card.dataset.entryTarget);
+    });
   });
   els.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await signIn();
   });
-  els.logoutButton.addEventListener("click", () => supabaseClient.auth.signOut());
+  els.logoutButton?.addEventListener("click", () => supabaseClient.auth.signOut());
   els.currentDate.addEventListener("change", () => {
     els.mealsDate.value = els.currentDate.value;
+    renderCurrentDateDisplay();
     loadDay();
+  });
+  els.currentDateDisplay.addEventListener("click", () => {
+    if (typeof els.currentDate.showPicker === "function") {
+      els.currentDate.showPicker();
+      return;
+    }
+    els.currentDate.focus();
   });
   els.foodSearch.addEventListener("input", updateFoodPreview);
   els.foodGrams.addEventListener("input", updateFoodPreview);
@@ -201,11 +223,38 @@ function bindEvents() {
   document.addEventListener("click", closeAutocompleteOnOutsideClick);
 }
 
+function moveEntryFormsToMeals() {
+  const forms = $("#entry-forms");
+  const target = $("#meals-entry-forms");
+  if (!forms || !target || target.contains(forms)) return;
+  target.appendChild(forms);
+}
+
 function activateTab(tabName) {
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabName));
+  const nav = document.querySelector(".bottom-nav");
+  const tabs = Array.from(nav?.querySelectorAll(".tab") || []);
+  tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabName));
+  const activeIndex = Math.max(tabs.findIndex((tab) => tab.dataset.tab === tabName), 0);
+  nav?.style.setProperty("--active-tab-index", activeIndex);
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tabName));
   if (tabName === "meals" && state.user) renderMealsTimeline();
   if (tabName === "history" && state.user) requestAnimationFrame(renderHistory);
+}
+
+function goToEntryForm(type) {
+  const targets = {
+    meal: { panel: "#meal-entry-panel", field: "#food-search" },
+    drink: { panel: "#drink-entry-panel", field: "#drink-search" },
+    exercise: { panel: "#exercise-entry-panel", field: "#exercise-search" }
+  };
+  const target = targets[type];
+  if (!target) return;
+  activateTab("meals");
+  requestAnimationFrame(() => {
+    const panel = $(target.panel);
+    panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => $(target.field)?.focus({ preventScroll: true }), 280);
+  });
 }
 
 async function signIn(options = {}) {
@@ -221,8 +270,21 @@ function renderSession() {
   const logged = Boolean(state.user);
   els.authView.classList.toggle("hidden", logged);
   els.appView.classList.toggle("hidden", !logged);
-  els.logoutButton.classList.toggle("hidden", !logged);
-  els.userEmail.textContent = state.user?.email || "";
+  els.logoutButton?.classList.toggle("hidden", !logged);
+  if (els.userEmail) els.userEmail.textContent = state.user?.email || "";
+  renderGreeting();
+}
+
+function renderGreeting() {
+  const name = getUserDisplayName();
+  els.greeting.textContent = name ? `👋 Hola, ${name}` : "👋 Hola";
+}
+
+function getUserDisplayName() {
+  const profileName = String(state.profile?.display_name || "").trim();
+  if (profileName) return profileName;
+  const emailName = String(state.user?.email || "").split("@")[0].trim();
+  return emailName || "";
 }
 
 function isAdmin() {
@@ -250,6 +312,7 @@ async function loadProfile() {
     .maybeSingle();
   if (error) return showError(error);
   state.profile = data;
+  renderGreeting();
 }
 
 async function loadCatalogs() {
@@ -271,7 +334,7 @@ async function loadCatalogs() {
 async function loadDay() {
   const date = els.currentDate.value || todayISO();
   const [mealsResult, drinksResult, exercisesResult] = await Promise.all([
-    supabaseClient.from("meal_entries").select("*, foods(name), meal_groups(id, meal_type, created_at)").eq("user_id", state.user.id).eq("entry_date", date).order("created_at"),
+    supabaseClient.from("meal_entries").select("*, foods(name, protein_per_100g, carbs_per_100g, fat_per_100g), meal_groups(id, meal_type, created_at)").eq("user_id", state.user.id).eq("entry_date", date).order("created_at"),
     supabaseClient.from("drink_entries").select("*, drinks(name)").eq("user_id", state.user.id).eq("entry_date", date).order("created_at"),
     supabaseClient.from("exercise_entries").select("*, exercise_catalog(name)").eq("user_id", state.user.id).eq("entry_date", date).order("created_at")
   ]);
@@ -287,14 +350,28 @@ async function loadDay() {
 }
 
 async function loadWeights() {
-  const { data, error } = await supabaseClient
+  const { data, error } = await fetchAllRows((from, to) => supabaseClient
     .from("weight_entries")
     .select("*")
     .eq("user_id", state.user.id)
-    .order("entry_date", { ascending: false });
+    .order("entry_date", { ascending: false })
+    .range(from, to));
   if (error) return showError(error);
   state.weights = data || [];
   renderWeights();
+}
+
+async function fetchAllRows(buildQuery, pageSize = 1000) {
+  const rows = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+    if (error) return { data: rows, error };
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < pageSize) return { data: rows, error: null };
+    from += pageSize;
+  }
 }
 
 function renderDatalists() {
@@ -407,9 +484,11 @@ function getCatalogToggleElements(type) {
 
 function renderProfileForm() {
   if (!state.profile) {
+    els.displayName.value = getUserDisplayName();
     renderTargetPreview();
     return;
   }
+  els.displayName.value = state.profile.display_name || getUserDisplayName();
   els.age.value = state.profile.age || "";
   els.sex.value = state.profile.sex || "male";
   els.height.value = state.profile.height_cm || "";
@@ -445,6 +524,7 @@ async function saveProfile(event) {
   const target = calculateTargetFromForm();
   const payload = {
     id: state.user.id,
+    display_name: els.displayName.value.trim(),
     age: Number(els.age.value),
     sex: els.sex.value,
     height_cm: Number(els.height.value),
@@ -456,6 +536,7 @@ async function saveProfile(event) {
   const { data, error } = await supabaseClient.from("profiles").upsert(payload).select().single();
   if (error) return showError(error);
   state.profile = data;
+  renderGreeting();
   renderDay();
   renderTargetPreview();
 }
@@ -472,6 +553,7 @@ async function saveWeight(event) {
   els.weight.value = payload.weight_kg;
   await supabaseClient.from("profiles").update({ current_weight_kg: payload.weight_kg }).eq("id", state.user.id);
   await Promise.all([loadProfile(), loadWeights()]);
+  renderDay();
   renderHistory();
 }
 
@@ -888,7 +970,16 @@ function renderDay() {
   $("#food-kcal").textContent = fmtKcal(foodTotal);
   $("#drink-kcal").textContent = fmtKcal(drinkTotal);
   $("#exercise-kcal").textContent = fmtKcal(exerciseTotal);
-  $("#net-kcal").textContent = `${fmtKcal(net)} / ${fmtKcal(target)}`;
+  const remainingRaw = target - net;
+  const remaining = Math.abs(remainingRaw);
+  const progress = target > 0 ? Math.min(Math.max((net / target) * 100, 0), 100) : 0;
+  $("#net-kcal").textContent = fmtKcal(remaining);
+  $("#balance-caption").textContent = remainingRaw >= 0 ? "restantes" : "exceso";
+  $("#balance-percent").textContent = `${Math.round(progress)}%`;
+  $("#balance-bar").style.setProperty("--progress", `${progress}%`);
+  document.querySelector(".metric.accent")?.classList.toggle("is-over", remainingRaw < 0);
+  renderWeightProgress();
+  renderMacros();
   $("#meal-total").textContent = fmtKcal(foodTotal);
   $("#drink-total").textContent = fmtKcal(drinkTotal);
   $("#exercise-total").textContent = fmtKcal(exerciseTotal);
@@ -906,6 +997,64 @@ function renderDay() {
   document.querySelectorAll("[data-delete-exercise]").forEach((button) => {
     button.addEventListener("click", () => deleteRow("exercise_entries", button.dataset.deleteExercise));
   });
+}
+
+function renderCurrentDateDisplay() {
+  els.currentDateDisplay.textContent = formatLongDate(els.currentDate.value || todayISO());
+}
+
+function renderMacros() {
+  const totals = state.meals.reduce((sum, item) => {
+    const grams = Number(item.quantity_g || 0) / 100;
+    sum.protein += Number(item.foods?.protein_per_100g || 0) * grams;
+    sum.carbs += Number(item.foods?.carbs_per_100g || 0) * grams;
+    sum.fat += Number(item.foods?.fat_per_100g || 0) * grams;
+    return sum;
+  }, { protein: 0, carbs: 0, fat: 0 });
+  const targets = calculateMacroTargets();
+  updateMacro("protein", totals.protein, targets.protein);
+  updateMacro("carbs", totals.carbs, targets.carbs);
+  updateMacro("fat", totals.fat, targets.fat);
+}
+
+function updateMacro(type, value, target) {
+  const rounded = Math.round(value);
+  const progress = target > 0 ? Math.min((value / target) * 100, 100) : 0;
+  $(`#${type}-total`).textContent = `${rounded}g`;
+  $(`#${type}-bar`).style.setProperty("--progress", `${progress}%`);
+}
+
+function calculateMacroTargets() {
+  const weight = Number(state.profile?.current_weight_kg || els.weight.value || 75);
+  const targetKcal = Number(state.profile?.target_kcal || calculateTargetFromForm() || 2000);
+  const protein = Math.max(weight * 1.6, 90);
+  const fat = Math.max(weight * 0.8, 45);
+  const carbs = Math.max((targetKcal - protein * 4 - fat * 9) / 4, 80);
+  return { protein, carbs, fat };
+}
+
+function renderWeightProgress() {
+  const currentWeight = getCurrentWeightValue();
+  $("#current-weight-display").textContent = currentWeight ? fmtKg(currentWeight) : "0 kg";
+  $("#weekly-weight-change").textContent = getWeeklyWeightChangeText(currentWeight);
+}
+
+function getCurrentWeightValue() {
+  return Number(state.weights[0]?.weight_kg || state.profile?.current_weight_kg || els.weight.value || 0);
+}
+
+function getWeeklyWeightChangeText(currentWeight) {
+  if (!currentWeight || state.weights.length < 2) return "Sin cambios esta semana";
+  const latestDate = new Date(`${state.weights[0].entry_date}T00:00:00`);
+  const weekAgo = new Date(latestDate);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const previous = state.weights.find((item) => new Date(`${item.entry_date}T00:00:00`) <= weekAgo) || state.weights[state.weights.length - 1];
+  if (!previous) return "Sin cambios esta semana";
+  const diff = currentWeight - Number(previous.weight_kg || 0);
+  if (!Number.isFinite(diff) || Math.abs(diff) < 0.05) return "Sin cambios esta semana";
+  const arrow = diff < 0 ? "↓" : "↑";
+  const sign = diff > 0 ? "+" : "";
+  return `${arrow} ${sign}${diff.toLocaleString("es-ES", { maximumFractionDigits: 1 })} kg esta semana`;
 }
 
 function renderWeights() {
@@ -996,9 +1145,9 @@ async function renderHistory() {
   if (!$("#history").classList.contains("active")) return;
 
   const [mealsResult, drinksResult, exercisesResult] = await Promise.all([
-    supabaseClient.from("meal_entries").select("entry_date, calories, meal_type").eq("user_id", state.user.id),
-    supabaseClient.from("drink_entries").select("entry_date, calories").eq("user_id", state.user.id),
-    supabaseClient.from("exercise_entries").select("entry_date, calories").eq("user_id", state.user.id)
+    fetchAllRows((from, to) => supabaseClient.from("meal_entries").select("entry_date, calories, meal_type").eq("user_id", state.user.id).order("entry_date").range(from, to)),
+    fetchAllRows((from, to) => supabaseClient.from("drink_entries").select("entry_date, calories").eq("user_id", state.user.id).order("entry_date").range(from, to)),
+    fetchAllRows((from, to) => supabaseClient.from("exercise_entries").select("entry_date, calories").eq("user_id", state.user.id).order("entry_date").range(from, to))
   ]);
   if (mealsResult.error) return showError(mealsResult.error);
   if (drinksResult.error) return showError(drinksResult.error);
@@ -1054,6 +1203,7 @@ async function renderHistory() {
     empty: els.mealTypeChartEmpty,
     segments: buildMealTypeSegments(mealsResult.data || [])
   });
+  renderMealTypeDays(mealsResult.data || []);
 
   // Store chart data for re-rendering on resize
   els.weightChart._chartData = {
@@ -1087,6 +1237,12 @@ async function renderHistory() {
 
 }
 
+function renderMealTypeDays(meals) {
+  const dayCount = new Set(meals.map((meal) => meal.entry_date).filter(Boolean)).size;
+  els.mealTypeDays.textContent = `Dias registrados: ${dayCount}`;
+  els.mealTypeDays.classList.toggle("hidden", dayCount === 0);
+}
+
 function renderLineChart({ canvas, empty, points, color, suffix }) {
   const hasData = points.length > 0;
   canvas.classList.toggle("hidden", !hasData);
@@ -1097,7 +1253,7 @@ function renderLineChart({ canvas, empty, points, color, suffix }) {
     return;
   }
 
-  const displayPoints = points.slice(-7);
+  const displayPoints = points;
   const values = displayPoints.map((p) => p.value);
   const maxValue = Math.max(...values);
   const minValue = Math.min(...values);
@@ -1135,6 +1291,9 @@ function renderLineChart({ canvas, empty, points, color, suffix }) {
       </g>
     `;
   }).join("");
+  const ticks = buildChartTicks(coords);
+  const pointRadius = displayPoints.length > 80 ? 2.4 : displayPoints.length > 35 ? 3.2 : 4.5;
+  const showPointValues = displayPoints.length <= 18;
 
   canvas.innerHTML = `
     <svg class="line-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Gráfica de evolución">
@@ -1143,13 +1302,42 @@ function renderLineChart({ canvas, empty, points, color, suffix }) {
       <polyline class="line-chart-line" points="${linePoints}" style="stroke: ${color};"></polyline>
       ${coords.map((point) => `
         <g class="line-chart-point">
-          <circle cx="${point.x}" cy="${point.y}" r="4.5" style="fill: ${color};"></circle>
-          <text class="point-value" x="${point.x}" y="${Math.max(12, point.y - 9)}">${formatChartValue(point.value, suffix)}</text>
-          <text class="point-date" x="${point.x}" y="${height - 13}">${formatShortDate(point.date)}</text>
+          <circle cx="${point.x}" cy="${point.y}" r="${pointRadius}" style="fill: ${color};"></circle>
+          ${showPointValues ? `<text class="point-value" x="${point.x}" y="${Math.max(12, point.y - 9)}">${formatChartValue(point.value, suffix)}</text>` : ""}
         </g>
+      `).join("")}
+      ${ticks.map((tick) => `
+        <text class="point-date" x="${tick.x}" y="${height - 13}">${tick.label}</text>
       `).join("")}
     </svg>
   `;
+}
+
+function buildChartTicks(points) {
+  if (points.length <= 12) {
+    return points.map((point) => ({ x: point.x, label: formatShortDate(point.date) }));
+  }
+
+  if (points.length <= 45) {
+    const interval = Math.ceil(points.length / 7);
+    return points
+      .filter((_point, index) => index % interval === 0 || index === points.length - 1)
+      .map((point) => ({ x: point.x, label: formatShortDate(point.date) }));
+  }
+
+  const monthTicks = [];
+  const seenMonths = new Set();
+  points.forEach((point) => {
+    const monthKey = point.date.slice(0, 7);
+    if (seenMonths.has(monthKey)) return;
+    seenMonths.add(monthKey);
+    monthTicks.push({ x: point.x, label: formatMonthDate(point.date) });
+  });
+
+  if (monthTicks.length <= 8) return monthTicks;
+
+  const interval = Math.ceil(monthTicks.length / 8);
+  return monthTicks.filter((_tick, index) => index % interval === 0 || index === monthTicks.length - 1);
 }
 
 function buildMealTypeSegments(meals) {
@@ -1317,6 +1505,14 @@ function findByName(list, name) {
 
 function formatDate(date) {
   return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${date}T00:00:00`));
+}
+
+function formatLongDate(date) {
+  return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T00:00:00`));
+}
+
+function formatMonthDate(date) {
+  return new Intl.DateTimeFormat("es-ES", { month: "short", year: "2-digit" }).format(new Date(`${date}T00:00:00`));
 }
 
 function formatShortDate(date) {
