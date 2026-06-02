@@ -670,6 +670,11 @@ main {
   gap: 0.75rem;
 }
 
+.catalog-scan-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .nutrition-scan {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
