@@ -45,6 +45,10 @@ const els = {
   foodOptions: $("#food-options"),
   foodGrams: $("#food-grams"),
   foodPreview: $("#food-preview"),
+  nutritionPhoto: $("#nutrition-photo"),
+  nutritionBarcode: $("#nutrition-barcode"),
+  nutritionBarcodeButton: $("#nutrition-barcode-button"),
+  nutritionScanResult: $("#nutrition-scan-result"),
   mealType: $("#meal-type"),
   mealFoods: $("#meal-foods"),
   addFoodLine: $("#add-food-line"),
@@ -187,6 +191,13 @@ function bindEvents() {
   });
   els.foodSearch.addEventListener("input", updateFoodPreview);
   els.foodGrams.addEventListener("input", updateFoodPreview);
+  els.nutritionPhoto.addEventListener("change", scanNutritionBarcodePhoto);
+  els.nutritionBarcodeButton.addEventListener("click", () => lookupNutritionBarcode(els.nutritionBarcode.value));
+  els.nutritionBarcode.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    lookupNutritionBarcode(els.nutritionBarcode.value);
+  });
   els.mealFoods.addEventListener("input", updateFoodPreview);
   els.mealFoods.addEventListener("change", updateFoodPreview);
   els.mealFoods.addEventListener("click", handleMealFoodsClick);
@@ -579,6 +590,190 @@ async function saveCatalogFood(event) {
   resetCatalogFoodForm();
   await loadCatalogs();
   updateFoodPreview();
+}
+
+async function scanNutritionBarcodePhoto() {
+  const file = els.nutritionPhoto.files?.[0];
+  if (!file) return;
+
+  setScanStatus("Leyendo codigo de barras...", "loading");
+  try {
+    const barcode = await detectBarcodeFromImage(file);
+    els.nutritionBarcode.value = barcode;
+    await lookupNutritionBarcode(barcode);
+  } catch (error) {
+    setScanStatus(error.message || "No se ha podido leer el codigo. Escribelo manualmente.", "error");
+  } finally {
+    els.nutritionPhoto.value = "";
+  }
+}
+
+async function lookupNutritionBarcode(rawBarcode) {
+  const barcode = String(rawBarcode || "").replace(/\D/g, "");
+  if (!barcode) {
+    setScanStatus("Escribe o escanea un codigo de barras.", "error");
+    return;
+  }
+
+  setScanStatus("Buscando producto en Open Food Facts...", "loading");
+  try {
+    const product = await fetchOpenFoodFactsProduct(barcode);
+    const nutrition = normalizeOpenFoodFactsProduct(product);
+    if (nutrition.productType === "drink") {
+      const drink = await saveScannedDrink(nutrition);
+      fillDrinkFormFromScannedDrink(drink, nutrition.servingMl);
+      setScanStatus(`Bebida encontrada: ${drink.name}. Revisa los ml y pulsa "Añadir bebida".`, "success");
+      return;
+    }
+
+    const food = await saveScannedFood(nutrition);
+    fillMealFormFromScannedFood(food, nutrition.servingGrams);
+    setScanStatus(`Alimento encontrado: ${food.name}. Revisa los gramos y pulsa "Añadir comida".`, "success");
+  } catch (error) {
+    setScanStatus(error.message || "No se ha encontrado el producto.", "error");
+  }
+}
+
+async function detectBarcodeFromImage(file) {
+  if (!("BarcodeDetector" in window)) {
+    throw new Error("Tu navegador no permite leer codigos de barras aqui. Escribelo manualmente.");
+  }
+
+  const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+  const image = await createImageBitmap(file);
+  const results = await detector.detect(image);
+  image.close?.();
+  const barcode = results[0]?.rawValue;
+  if (!barcode) throw new Error("No he encontrado ningun codigo de barras. Escribelo manualmente.");
+  return barcode;
+}
+
+async function fetchOpenFoodFactsProduct(barcode) {
+  const fields = [
+    "product_name",
+    "generic_name",
+    "categories_tags",
+    "nutriments",
+    "serving_quantity"
+  ].join(",");
+  const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=${fields}`);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.status !== 1 || !payload.product) {
+    throw new Error("No he encontrado este producto en Open Food Facts.");
+  }
+  return payload.product;
+}
+
+function normalizeOpenFoodFactsProduct(product) {
+  const nutriments = product.nutriments || {};
+  const name = String(product.product_name || product.generic_name || "").trim();
+  const productType = isOpenFoodFactsDrink(product) ? "drink" : "food";
+  const calories = productType === "drink"
+    ? firstFiniteNumber(nutriments["energy-kcal_100ml"], nutriments["energy-kcal_100g"], nutriments["energy-kcal"])
+    : firstFiniteNumber(nutriments["energy-kcal_100g"], nutriments["energy-kcal_100ml"], nutriments["energy-kcal"]);
+
+  if (!name || !Number.isFinite(calories) || calories < 0) {
+    throw new Error("El producto existe, pero no tiene calorias completas en Open Food Facts.");
+  }
+
+  const serving = cleanServingAmount(product.serving_quantity, productType === "drink" ? 250 : 100);
+  return {
+    name,
+    productType,
+    caloriesPer100g: Math.round(calories),
+    caloriesPer100ml: Math.round(calories),
+    proteinPer100g: cleanMacroValue(nutriments.proteins_100g),
+    carbsPer100g: cleanMacroValue(nutriments.carbohydrates_100g),
+    fatPer100g: cleanMacroValue(nutriments.fat_100g),
+    servingGrams: productType === "food" ? serving : 100,
+    servingMl: productType === "drink" ? serving : 250
+  };
+}
+
+function isOpenFoodFactsDrink(product) {
+  const categories = (product.categories_tags || []).join(" ").toLowerCase();
+  return categories.includes("beverage") ||
+    categories.includes("drink") ||
+    categories.includes("water") ||
+    categories.includes("juice") ||
+    categories.includes("soda") ||
+    categories.includes("milk");
+}
+
+function firstFiniteNumber(...values) {
+  return values.map(Number).find((value) => Number.isFinite(value));
+}
+
+function cleanMacroValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Number(number.toFixed(1)) : 0;
+}
+
+function cleanServingAmount(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.round(number) : fallback;
+}
+
+async function saveScannedFood(nutrition) {
+  const existing = findByName(state.foods, nutrition.name);
+  const payload = {
+    user_id: state.user.id,
+    name: nutrition.name,
+    calories_per_100g: nutrition.caloriesPer100g,
+    protein_per_100g: nutrition.proteinPer100g,
+    carbs_per_100g: nutrition.carbsPer100g,
+    fat_per_100g: nutrition.fatPer100g,
+    is_public: false
+  };
+
+  const result = existing && canEditCatalogItem(existing)
+    ? await supabaseClient.from("foods").update(payload).eq("id", existing.id).select().single()
+    : await supabaseClient.from("foods").insert(payload).select().single();
+  if (result.error) throw result.error;
+
+  await loadCatalogs();
+  return result.data;
+}
+
+async function saveScannedDrink(nutrition) {
+  const existing = findByName(state.drinks, nutrition.name);
+  const payload = {
+    user_id: state.user.id,
+    name: nutrition.name,
+    calories_per_100ml: nutrition.caloriesPer100ml,
+    is_public: false
+  };
+
+  const result = existing && canEditCatalogItem(existing)
+    ? await supabaseClient.from("drinks").update(payload).eq("id", existing.id).select().single()
+    : await supabaseClient.from("drinks").insert(payload).select().single();
+  if (result.error) throw result.error;
+
+  await loadCatalogs();
+  return result.data;
+}
+
+function fillMealFormFromScannedFood(food, grams) {
+  const firstRow = els.mealFoods.querySelector(".meal-food-row");
+  const nameInput = firstRow?.querySelector(".food-search");
+  const gramsInput = firstRow?.querySelector(".food-grams");
+  if (!nameInput || !gramsInput) return;
+
+  nameInput.value = food.name;
+  gramsInput.value = grams || 100;
+  updateFoodPreview();
+}
+
+function fillDrinkFormFromScannedDrink(drink, ml) {
+  els.drinkSearch.value = drink.name;
+  els.drinkMl.value = ml || 250;
+  updateDrinkPreview();
+}
+
+function setScanStatus(message, type = "info") {
+  els.nutritionScanResult.textContent = message;
+  els.nutritionScanResult.dataset.type = type;
+  els.nutritionScanResult.classList.toggle("hidden", !message);
 }
 
 async function saveCatalogDrink(event) {

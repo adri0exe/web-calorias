@@ -139,6 +139,24 @@
                     </select>
                   </label>
                 </div>
+                <div class="nutrition-scan">
+                  <div>
+                    <h3>Escanear producto</h3>
+                    <p>Usa el codigo de barras para buscarlo gratis en Open Food Facts.</p>
+                  </div>
+                  <label class="scan-upload">
+                    <input id="nutrition-photo" type="file" accept="image/*" capture="environment">
+                    <span>Escanear</span>
+                  </label>
+                </div>
+                <div class="barcode-row">
+                  <label>
+                    Codigo de barras
+                    <input id="nutrition-barcode" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Ej. 8412345678901">
+                  </label>
+                  <button id="nutrition-barcode-button" class="secondary" type="button">Buscar</button>
+                </div>
+                <p id="nutrition-scan-result" class="scan-result hidden"></p>
                 <div id="meal-foods" class="meal-foods">
                   <div class="meal-food-row form-grid">
                     <label>

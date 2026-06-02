@@ -670,6 +670,93 @@ main {
   gap: 0.75rem;
 }
 
+.nutrition-scan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--orange) 18%, var(--line));
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--orange-soft) 56%, #fff), #fff 78%);
+  padding: 0.9rem;
+}
+
+.nutrition-scan h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.nutrition-scan p {
+  margin: 0.24rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.scan-upload {
+  display: inline-grid;
+  min-width: 116px;
+}
+
+.scan-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scan-upload span {
+  display: inline-flex;
+  min-height: var(--tap);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: #fff;
+  font-weight: 760;
+  padding: 0 0.95rem;
+}
+
+.scan-result {
+  margin: -0.35rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 0.72rem 0.8rem;
+}
+
+.scan-result[data-type="success"] {
+  border-color: #c9dfd6;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
+.scan-result[data-type="error"] {
+  border-color: #efc3cc;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.scan-result[data-type="loading"] {
+  color: var(--ink);
+}
+
+.barcode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
 .meal-food-row {
   align-items: end;
 }
@@ -1295,6 +1382,23 @@ main {
     border: 0;
     background: transparent;
     padding: 0;
+  }
+
+  .nutrition-scan {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+  }
+
+  .scan-upload {
+    width: 100%;
+  }
+
+  .barcode-row {
+    grid-template-columns: 1fr;
+  }
+
+  .barcode-row button {
+    width: 100%;
   }
 
   .button-row.compact button,
