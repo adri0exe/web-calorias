@@ -24,6 +24,11 @@ const state = {
 
 let barcodeScannerControls = null;
 let barcodeScannerReader = null;
+const barcodeReaderUrls = [
+  "https://unpkg.com/@zxing/browser@latest",
+  "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.0/umd/zxing-browser.min.js",
+  "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.0/umd/zxing-browser.js"
+];
 
 const $ = (selector) => document.querySelector(selector);
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -611,7 +616,7 @@ async function startBarcodeScanner() {
     setScanStatus("Tu navegador no permite usar la camara aqui. Escribe el codigo manualmente.", "error");
     return;
   }
-  const Reader = window.ZXingBrowser?.BrowserMultiFormatOneDReader || window.ZXingBrowser?.BrowserMultiFormatReader;
+  const Reader = await ensureBarcodeReader();
   if (!Reader) {
     setScanStatus("No se ha cargado el lector de codigos. Revisa la conexion y vuelve a intentarlo.", "error");
     return;
@@ -657,6 +662,47 @@ function stopBarcodeScanner(options = {}) {
   if (els.barcodeVideo) els.barcodeVideo.srcObject = null;
   els.barcodeScannerModal.classList.add("hidden");
   if (!options.silent) setScanStatus("Escaneo cancelado. Puedes escribir el codigo manualmente.", "info");
+}
+
+async function ensureBarcodeReader() {
+  const existing = getBarcodeReader();
+  if (existing) return existing;
+
+  for (const url of barcodeReaderUrls) {
+    try {
+      await loadExternalScript(url);
+      const reader = getBarcodeReader();
+      if (reader) return reader;
+    } catch {
+      // Try the next CDN URL.
+    }
+  }
+
+  return null;
+}
+
+function getBarcodeReader() {
+  return window.ZXingBrowser?.BrowserMultiFormatOneDReader ||
+    window.ZXingBrowser?.BrowserMultiFormatReader ||
+    null;
+}
+
+function loadExternalScript(src) {
+  const existing = document.querySelector(`script[src="${src}"]`);
+  if (existing?.dataset.loaded === "true") return Promise.resolve();
+  if (existing) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.addEventListener("load", () => {
+      script.dataset.loaded = "true";
+      resolve();
+    }, { once: true });
+    script.addEventListener("error", reject, { once: true });
+    document.head.appendChild(script);
+  });
 }
 
 async function lookupNutritionBarcode(rawBarcode) {
