@@ -762,6 +762,58 @@ main {
   gap: 0.75rem;
 }
 
+.scanner-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(22, 24, 20, 0.42);
+  padding: 18px;
+}
+
+.scanner-panel {
+  width: min(480px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(22, 24, 20, 0.24);
+  padding: 16px;
+}
+
+.scanner-view {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #111;
+  aspect-ratio: 4 / 5;
+  margin-top: 1rem;
+}
+
+.scanner-view video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scanner-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(82%, 340px);
+  height: 112px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 999px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(22, 24, 20, 0.18);
+  transform: translate(-50%, -50%);
+}
+
+.scanner-panel .scan-result {
+  margin: 0.85rem 0 0;
+}
+
 .meal-food-row {
   align-items: end;
 }
@@ -1183,7 +1235,7 @@ main {
     --active-tab-index: 0;
     position: fixed;
     right: max(10px, env(safe-area-inset-right));
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    bottom: calc(30px + env(safe-area-inset-bottom));
     left: max(10px, env(safe-area-inset-left));
     z-index: 50;
     display: grid;
@@ -1404,6 +1456,17 @@ main {
 
   .barcode-row button {
     width: 100%;
+  }
+
+  .scanner-modal {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .scanner-panel {
+    max-height: calc(100vh - 20px);
+    overflow: auto;
+    padding: 14px;
   }
 
   .button-row.compact button,

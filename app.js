@@ -22,6 +22,9 @@ const state = {
   weights: []
 };
 
+let barcodeScannerControls = null;
+let barcodeScannerReader = null;
+
 const $ = (selector) => document.querySelector(selector);
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const round = (value) => Math.round(Number(value) || 0);
@@ -45,7 +48,11 @@ const els = {
   foodOptions: $("#food-options"),
   foodGrams: $("#food-grams"),
   foodPreview: $("#food-preview"),
-  nutritionPhoto: $("#nutrition-photo"),
+  startBarcodeScanner: $("#start-barcode-scanner"),
+  closeBarcodeScanner: $("#close-barcode-scanner"),
+  barcodeScannerModal: $("#barcode-scanner-modal"),
+  barcodeScannerMessage: $("#barcode-scanner-message"),
+  barcodeVideo: $("#barcode-video"),
   nutritionBarcode: $("#nutrition-barcode"),
   nutritionBarcodeButton: $("#nutrition-barcode-button"),
   nutritionScanResult: $("#nutrition-scan-result"),
@@ -191,7 +198,14 @@ function bindEvents() {
   });
   els.foodSearch.addEventListener("input", updateFoodPreview);
   els.foodGrams.addEventListener("input", updateFoodPreview);
-  els.nutritionPhoto.addEventListener("change", scanNutritionBarcodePhoto);
+  els.startBarcodeScanner.addEventListener("click", startBarcodeScanner);
+  els.closeBarcodeScanner.addEventListener("click", stopBarcodeScanner);
+  els.barcodeScannerModal.addEventListener("click", (event) => {
+    if (event.target === els.barcodeScannerModal) stopBarcodeScanner();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.barcodeScannerModal.classList.contains("hidden")) stopBarcodeScanner();
+  });
   els.nutritionBarcodeButton.addEventListener("click", () => lookupNutritionBarcode(els.nutritionBarcode.value));
   els.nutritionBarcode.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
@@ -592,20 +606,57 @@ async function saveCatalogFood(event) {
   updateFoodPreview();
 }
 
-async function scanNutritionBarcodePhoto() {
-  const file = els.nutritionPhoto.files?.[0];
-  if (!file) return;
-
-  setScanStatus("Leyendo codigo de barras...", "loading");
-  try {
-    const barcode = await detectBarcodeFromImage(file);
-    els.nutritionBarcode.value = barcode;
-    await lookupNutritionBarcode(barcode);
-  } catch (error) {
-    setScanStatus(error.message || "No se ha podido leer el codigo. Escribelo manualmente.", "error");
-  } finally {
-    els.nutritionPhoto.value = "";
+async function startBarcodeScanner() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setScanStatus("Tu navegador no permite usar la camara aqui. Escribe el codigo manualmente.", "error");
+    return;
   }
+  const Reader = window.ZXingBrowser?.BrowserMultiFormatOneDReader || window.ZXingBrowser?.BrowserMultiFormatReader;
+  if (!Reader) {
+    setScanStatus("No se ha cargado el lector de codigos. Revisa la conexion y vuelve a intentarlo.", "error");
+    return;
+  }
+
+  stopBarcodeScanner({ silent: true });
+  els.barcodeScannerModal.classList.remove("hidden");
+  setScannerMessage("Apunta al codigo de barras del producto.", "loading");
+
+  let hasResult = false;
+  try {
+    barcodeScannerReader = new Reader();
+    barcodeScannerControls = await barcodeScannerReader.decodeFromConstraints(
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      },
+      els.barcodeVideo,
+      async (result) => {
+        if (!result || hasResult) return;
+        hasResult = true;
+        const barcode = result.getText();
+        els.nutritionBarcode.value = barcode;
+        setScannerMessage(`Codigo detectado: ${barcode}`, "success");
+        stopBarcodeScanner({ silent: true });
+        await lookupNutritionBarcode(barcode);
+      }
+    );
+  } catch (error) {
+    stopBarcodeScanner({ silent: true });
+    setScanStatus(error.message || "No se ha podido abrir la camara. Escribe el codigo manualmente.", "error");
+  }
+}
+
+function stopBarcodeScanner(options = {}) {
+  barcodeScannerControls?.stop();
+  barcodeScannerControls = null;
+  barcodeScannerReader = null;
+  if (els.barcodeVideo) els.barcodeVideo.srcObject = null;
+  els.barcodeScannerModal.classList.add("hidden");
+  if (!options.silent) setScanStatus("Escaneo cancelado. Puedes escribir el codigo manualmente.", "info");
 }
 
 async function lookupNutritionBarcode(rawBarcode) {
@@ -632,20 +683,6 @@ async function lookupNutritionBarcode(rawBarcode) {
   } catch (error) {
     setScanStatus(error.message || "No se ha encontrado el producto.", "error");
   }
-}
-
-async function detectBarcodeFromImage(file) {
-  if (!("BarcodeDetector" in window)) {
-    throw new Error("Tu navegador no permite leer codigos de barras aqui. Escribelo manualmente.");
-  }
-
-  const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
-  const image = await createImageBitmap(file);
-  const results = await detector.detect(image);
-  image.close?.();
-  const barcode = results[0]?.rawValue;
-  if (!barcode) throw new Error("No he encontrado ningun codigo de barras. Escribelo manualmente.");
-  return barcode;
 }
 
 async function fetchOpenFoodFactsProduct(barcode) {
@@ -774,6 +811,11 @@ function setScanStatus(message, type = "info") {
   els.nutritionScanResult.textContent = message;
   els.nutritionScanResult.dataset.type = type;
   els.nutritionScanResult.classList.toggle("hidden", !message);
+}
+
+function setScannerMessage(message, type = "info") {
+  els.barcodeScannerMessage.textContent = message;
+  els.barcodeScannerMessage.dataset.type = type;
 }
 
 async function saveCatalogDrink(event) {

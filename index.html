@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.0"></script>
     <script src="config.js"></script>
     <script defer src="app.js"></script>
   </head>
@@ -341,10 +342,7 @@
                 <h3>Escanear producto</h3>
                 <p>Usa el codigo de barras para buscarlo gratis en Open Food Facts.</p>
               </div>
-              <label class="scan-upload">
-                <input id="nutrition-photo" type="file" accept="image/*" capture="environment">
-                <span>Escanear</span>
-              </label>
+              <button id="start-barcode-scanner" type="button">Escanear</button>
             </div>
             <div class="barcode-row">
               <label>
@@ -455,5 +453,18 @@
       <datalist id="drink-options"></datalist>
       <datalist id="exercise-options"></datalist>
     </main>
+    <div id="barcode-scanner-modal" class="scanner-modal hidden" role="dialog" aria-modal="true" aria-labelledby="barcode-scanner-title">
+      <div class="scanner-panel">
+        <div class="panel-heading">
+          <h2 id="barcode-scanner-title">Escanear codigo</h2>
+          <button id="close-barcode-scanner" class="secondary" type="button">Cerrar</button>
+        </div>
+        <div class="scanner-view">
+          <video id="barcode-video" playsinline muted></video>
+          <div class="scanner-frame" aria-hidden="true"></div>
+        </div>
+        <p id="barcode-scanner-message" class="scan-result" data-type="loading">Apunta al codigo de barras del producto.</p>
+      </div>
+    </div>
   </body>
 </html>
