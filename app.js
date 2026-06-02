@@ -325,6 +325,21 @@ function canEditCatalogItem(item) {
   return item.user_id === state.user.id || (item.is_public === true && isAdmin());
 }
 
+function isDuplicateCatalogName(items, name, currentId = "") {
+  const normalized = normalizeCatalogName(name);
+  if (!normalized) return false;
+  return items.some((item) => item.id !== currentId && normalizeCatalogName(item.name) === normalized);
+}
+
+function normalizeCatalogName(name) {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 async function loadAll() {
   await loadProfile();
   await Promise.all([loadCatalogs(), loadWeights()]);
@@ -590,10 +605,14 @@ async function saveWeight(event) {
 async function saveCatalogFood(event) {
   event.preventDefault();
   const id = els.catalogFoodId.value;
+  const name = els.catalogFoodName.value.trim();
+  if (isDuplicateCatalogName(state.foods, name, id)) {
+    return alert("Ya existe un alimento con ese nombre. Cambia el nombre o edita el alimento existente.");
+  }
   const shouldBePublic = isAdmin() && els.catalogFoodPublic.checked;
   const payload = {
     user_id: shouldBePublic ? null : state.user.id,
-    name: els.catalogFoodName.value.trim(),
+    name,
     calories_per_100g: Number(els.catalogFoodCalories.value),
     protein_per_100g: Number(els.catalogFoodProtein.value || 0),
     carbs_per_100g: Number(els.catalogFoodCarbs.value || 0),
@@ -717,15 +736,13 @@ async function lookupNutritionBarcode(rawBarcode) {
     const product = await fetchOpenFoodFactsProduct(barcode);
     const nutrition = normalizeOpenFoodFactsProduct(product);
     if (nutrition.productType === "drink") {
-      const drink = await saveScannedDrink(nutrition);
-      fillDrinkFormFromScannedDrink(drink, nutrition.servingMl);
-      setScanStatus(`Bebida encontrada: ${drink.name}. Revisa los ml y pulsa "Añadir bebida".`, "success");
+      fillCatalogDrinkFormFromScan(nutrition);
+      setScanStatus("Bebida encontrada. Revisa los datos y guarda la bebida en el catalogo.", "success");
       return;
     }
 
-    const food = await saveScannedFood(nutrition);
-    fillMealFormFromScannedFood(food, nutrition.servingGrams);
-    setScanStatus(`Alimento encontrado: ${food.name}. Revisa los gramos y pulsa "Añadir comida".`, "success");
+    fillCatalogFoodFormFromScan(nutrition);
+    setScanStatus("Alimento encontrado. Revisa los datos y guarda el alimento en el catalogo.", "success");
   } catch (error) {
     setScanStatus(error.message || "No se ha encontrado el producto.", "error");
   }
@@ -797,60 +814,26 @@ function cleanServingAmount(value, fallback) {
   return Number.isFinite(number) && number > 0 ? Math.round(number) : fallback;
 }
 
-async function saveScannedFood(nutrition) {
-  const existing = findByName(state.foods, nutrition.name);
-  const payload = {
-    user_id: state.user.id,
-    name: nutrition.name,
-    calories_per_100g: nutrition.caloriesPer100g,
-    protein_per_100g: nutrition.proteinPer100g,
-    carbs_per_100g: nutrition.carbsPer100g,
-    fat_per_100g: nutrition.fatPer100g,
-    is_public: false
-  };
-
-  const result = existing && canEditCatalogItem(existing)
-    ? await supabaseClient.from("foods").update(payload).eq("id", existing.id).select().single()
-    : await supabaseClient.from("foods").insert(payload).select().single();
-  if (result.error) throw result.error;
-
-  await loadCatalogs();
-  return result.data;
+function fillCatalogFoodFormFromScan(nutrition) {
+  resetCatalogFoodForm();
+  els.catalogFoodName.value = nutrition.name;
+  els.catalogFoodCalories.value = nutrition.caloriesPer100g;
+  els.catalogFoodProtein.value = nutrition.proteinPer100g;
+  els.catalogFoodCarbs.value = nutrition.carbsPer100g;
+  els.catalogFoodFat.value = nutrition.fatPer100g;
+  scrollToCatalogForm(els.catalogFoodForm, els.catalogFoodName);
 }
 
-async function saveScannedDrink(nutrition) {
-  const existing = findByName(state.drinks, nutrition.name);
-  const payload = {
-    user_id: state.user.id,
-    name: nutrition.name,
-    calories_per_100ml: nutrition.caloriesPer100ml,
-    is_public: false
-  };
-
-  const result = existing && canEditCatalogItem(existing)
-    ? await supabaseClient.from("drinks").update(payload).eq("id", existing.id).select().single()
-    : await supabaseClient.from("drinks").insert(payload).select().single();
-  if (result.error) throw result.error;
-
-  await loadCatalogs();
-  return result.data;
+function fillCatalogDrinkFormFromScan(nutrition) {
+  resetCatalogDrinkForm();
+  els.catalogDrinkName.value = nutrition.name;
+  els.catalogDrinkCalories.value = nutrition.caloriesPer100ml;
+  scrollToCatalogForm(els.catalogDrinkForm, els.catalogDrinkName);
 }
 
-function fillMealFormFromScannedFood(food, grams) {
-  const firstRow = els.mealFoods.querySelector(".meal-food-row");
-  const nameInput = firstRow?.querySelector(".food-search");
-  const gramsInput = firstRow?.querySelector(".food-grams");
-  if (!nameInput || !gramsInput) return;
-
-  nameInput.value = food.name;
-  gramsInput.value = grams || 100;
-  updateFoodPreview();
-}
-
-function fillDrinkFormFromScannedDrink(drink, ml) {
-  els.drinkSearch.value = drink.name;
-  els.drinkMl.value = ml || 250;
-  updateDrinkPreview();
+function scrollToCatalogForm(form, focusTarget) {
+  form.closest(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => focusTarget.focus({ preventScroll: true }), 320);
 }
 
 function setScanStatus(message, type = "info") {
@@ -867,10 +850,14 @@ function setScannerMessage(message, type = "info") {
 async function saveCatalogDrink(event) {
   event.preventDefault();
   const id = els.catalogDrinkId.value;
+  const name = els.catalogDrinkName.value.trim();
+  if (isDuplicateCatalogName(state.drinks, name, id)) {
+    return alert("Ya existe una bebida con ese nombre. Cambia el nombre o edita la bebida existente.");
+  }
   const shouldBePublic = isAdmin() && els.catalogDrinkPublic.checked;
   const payload = {
     user_id: shouldBePublic ? null : state.user.id,
-    name: els.catalogDrinkName.value.trim(),
+    name,
     calories_per_100ml: Number(els.catalogDrinkCalories.value),
     is_public: shouldBePublic
   };
