@@ -287,6 +287,21 @@ function goToEntryForm(type) {
   });
 }
 
+function getEntryDate() {
+  return $("#meals").classList.contains("active")
+    ? (els.mealsDate.value || todayISO())
+    : (els.currentDate.value || todayISO());
+}
+
+async function refreshAfterEntryChange(date) {
+  if (date === (els.currentDate.value || todayISO())) {
+    await loadDay();
+  } else if ($("#meals").classList.contains("active")) {
+    await renderMealsTimeline();
+    renderHistory();
+  }
+}
+
 async function signIn(options = {}) {
   const messageEl = options.messageEl || els.authMessage;
   messageEl.textContent = "";
@@ -979,6 +994,7 @@ async function deleteCatalogExercise(id) {
 
 async function saveMeal(event) {
   event.preventDefault();
+  const entryDate = getEntryDate();
   const items = getMealFoodItems();
   if (!items.length) return alert("Selecciona al menos un alimento.");
 
@@ -987,14 +1003,14 @@ async function saveMeal(event) {
 
   const groupResult = await supabaseClient.from("meal_groups").insert({
     user_id: state.user.id,
-    entry_date: els.currentDate.value,
+    entry_date: entryDate,
     meal_type: els.mealType.value
   }).select().single();
   if (groupResult.error) return showError(groupResult.error);
 
   const rows = items.map((item) => ({
     user_id: state.user.id,
-    entry_date: els.currentDate.value,
+    entry_date: entryDate,
     meal_group_id: groupResult.data.id,
     meal_type: els.mealType.value,
     food_id: item.food.id,
@@ -1008,8 +1024,7 @@ async function saveMeal(event) {
     return showError(error);
   }
   resetMealFoodRows();
-  await loadDay();
-  if ($("#meals").classList.contains("active")) renderMealsTimeline();
+  await refreshAfterEntryChange(entryDate);
   updateFoodPreview();
 }
 
@@ -1125,26 +1140,27 @@ function closeAutocomplete() {
 
 async function saveDrink(event) {
   event.preventDefault();
+  const entryDate = getEntryDate();
   const drink = findByName(state.drinks, els.drinkSearch.value);
   if (!drink) return alert("Esa bebida no está en la base de datos. Primero añádela en el catálogo o usa una de la lista.");
   const ml = Number(els.drinkMl.value);
   const calories = (Number(drink.calories_per_100ml) * ml) / 100;
   const { error } = await supabaseClient.from("drink_entries").insert({
     user_id: state.user.id,
-    entry_date: els.currentDate.value,
+    entry_date: entryDate,
     drink_id: drink.id,
     quantity_ml: ml,
     calories: round(calories)
   });
   if (error) return showError(error);
   els.drinkSearch.value = "";
-  await loadDay();
-  if ($("#meals").classList.contains("active")) renderMealsTimeline();
+  await refreshAfterEntryChange(entryDate);
   updateDrinkPreview();
 }
 
 async function saveExercise(event) {
   event.preventDefault();
+  const entryDate = getEntryDate();
   const exercise = findByName(state.exercises, els.exerciseSearch.value);
   if (!exercise) return alert("Esa actividad no está en la base de datos. Usa una de la lista.");
   const minutes = Number(els.exerciseMinutes.value);
@@ -1152,22 +1168,22 @@ async function saveExercise(event) {
   const calories = calculateExerciseCalories(exercise.met, weight, minutes);
   const { error } = await supabaseClient.from("exercise_entries").insert({
     user_id: state.user.id,
-    entry_date: els.currentDate.value,
+    entry_date: entryDate,
     exercise_id: exercise.id,
     minutes,
     calories: round(calories)
   });
   if (error) return showError(error);
   els.exerciseSearch.value = "";
-  await loadDay();
+  await refreshAfterEntryChange(entryDate);
   updateExercisePreview();
 }
 
 async function deleteRow(table, id) {
+  const entryDate = getEntryDate();
   const { error } = await supabaseClient.from(table).delete().eq("id", id).eq("user_id", state.user.id);
   if (error) return showError(error);
-  await loadDay();
-  if ($("#meals").classList.contains("active")) renderMealsTimeline();
+  await refreshAfterEntryChange(entryDate);
 }
 
 async function deleteMealGroup(id) {
@@ -1176,8 +1192,7 @@ async function deleteMealGroup(id) {
   }
   const { error } = await supabaseClient.from("meal_groups").delete().eq("id", id).eq("user_id", state.user.id);
   if (error) return showError(error);
-  await loadDay();
-  if ($("#meals").classList.contains("active")) renderMealsTimeline();
+  await refreshAfterEntryChange(getEntryDate());
 }
 
 function groupMealsForDay(meals) {
@@ -1355,7 +1370,7 @@ async function renderMealsTimeline() {
   if (!state.user) return;
   const date = els.mealsDate.value || todayISO();
 
-  const [mealsResult, drinksResult] = await Promise.all([
+  const [mealsResult, drinksResult, exercisesResult] = await Promise.all([
     supabaseClient
       .from("meal_entries")
       .select("*, foods(name), meal_groups(id, meal_type, created_at)")
@@ -1367,10 +1382,23 @@ async function renderMealsTimeline() {
       .select("*, drinks(name)")
       .eq("user_id", state.user.id)
       .eq("entry_date", date)
+      .order("created_at", { ascending: false }),
+    supabaseClient
+      .from("exercise_entries")
+      .select("*, exercise_catalog(name)")
+      .eq("user_id", state.user.id)
+      .eq("entry_date", date)
       .order("created_at", { ascending: false })
   ]);
   if (mealsResult.error) return showError(mealsResult.error);
   if (drinksResult.error) return showError(drinksResult.error);
+  if (exercisesResult.error) return showError(exercisesResult.error);
+
+  renderMealsSectionTotals({
+    meals: mealsResult.data || [],
+    drinks: drinksResult.data || [],
+    exercises: exercisesResult.data || []
+  });
 
   const mealGroups = groupMealsForDay(mealsResult.data || []);
   const entries = [
@@ -1407,6 +1435,29 @@ async function renderMealsTimeline() {
   bindMealGroupDeleteButtons(els.mealsTimeline);
   els.mealsTimeline.querySelectorAll("[data-delete-drink-entry]").forEach((button) => {
     button.addEventListener("click", () => deleteRow("drink_entries", button.dataset.deleteDrinkEntry));
+  });
+}
+
+function renderMealsSectionTotals({ meals, drinks, exercises }) {
+  const foodTotal = meals.reduce((sum, item) => sum + Number(item.calories || 0), 0);
+  const drinkTotal = drinks.reduce((sum, item) => sum + Number(item.calories || 0), 0);
+  const exerciseTotal = exercises.reduce((sum, item) => sum + Number(item.calories || 0), 0);
+
+  $("#meal-total").textContent = fmtKcal(foodTotal);
+  $("#drink-total").textContent = fmtKcal(drinkTotal);
+  $("#exercise-total").textContent = fmtKcal(exerciseTotal);
+  els.exerciseList.innerHTML = exercises.map((item) => `
+    <li>
+      <div class="entry-main">
+        <strong>${escapeHtml(item.exercise_catalog?.name || "Ejercicio")}</strong>
+        <span>${item.minutes} min - ${fmtKcal(item.calories)}</span>
+      </div>
+      <button class="danger" type="button" data-delete-exercise="${item.id}">Borrar</button>
+    </li>
+  `).join("");
+
+  els.exerciseList.querySelectorAll("[data-delete-exercise]").forEach((button) => {
+    button.addEventListener("click", () => deleteRow("exercise_entries", button.dataset.deleteExercise));
   });
 }
 
